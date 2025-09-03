@@ -1,0 +1,74 @@
+name: Deploy Workers and Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+  WORKER_URL: ${{ vars.WORKER_URL }}
+  INGEST_URL: ${{ vars.INGEST_URL }}
+
+jobs:
+  deploy-ingest:
+    name: Deploy Ingestion Worker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy ingest-worker
+        working-directory: ingest-worker
+        run: npx wrangler@4 deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ env.CF_API_TOKEN }}
+
+  deploy-api:
+    name: Deploy API Worker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy worker
+        working-directory: worker
+        run: npx wrangler@4 deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ env.CF_API_TOKEN }}
+
+  smoke-test:
+    name: Post-deploy smoke tests
+    runs-on: ubuntu-latest
+    needs: [deploy-ingest, deploy-api]
+    steps:
+      - name: Prepare URLs
+        id: prep
+        run: |
+          API_URL="${WORKER_URL:-https://dcom360-worker.samuel-1e5.workers.dev}"
+          ING_URL="${INGEST_URL:-https://dcom360-ingest.samuel-1e5.workers.dev}"
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          echo "ing_url=$ING_URL" >> $GITHUB_OUTPUT
+      - name: Check /api/health
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o health.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/health")
+          test "$code" = "200"
+          grep -q '"success":\s*true' health.json
+      - name: Check /api/disasters/summary
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o summary.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/disasters/summary")
+          test "$code" = "200"
+          grep -q '"success":\s*true' summary.json
+          grep -q '"totals"' summary.json
+      - name: OPTIONS on ingest endpoint
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "${{ steps.prep.outputs.ing_url }}/ingest/email")
+          test "$code" = "204"
