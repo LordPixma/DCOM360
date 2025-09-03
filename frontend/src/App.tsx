@@ -2,6 +2,7 @@ import { TrafficLights } from './components/TrafficLights'
 import { DisasterMap } from './components/DisasterMap'
 import { RecentDisasters } from './components/RecentDisasters'
 import { Filters } from './components/Filters'
+import { Statistics } from './components/Statistics'
 
 export default function App() {
   return (
@@ -16,8 +17,9 @@ export default function App() {
         <TrafficLights />
         <Filters />
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 space-y-6">
             <DisasterMap />
+            <Statistics />
           </div>
           <div className="lg:col-span-2">
             <RecentDisasters />

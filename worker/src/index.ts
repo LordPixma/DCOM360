@@ -19,7 +19,11 @@ type Disaster = {
 function json<T>(data: T, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {
     ...init,
-    headers: { 'content-type': 'application/json; charset=utf-8', ...(init.headers || {}) }
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': '*',
+      ...(init.headers || {})
+    }
   })
 }
 
@@ -32,6 +36,16 @@ const mockDisasters: Disaster[] = [
 export default {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET,OPTIONS',
+          'access-control-allow-headers': 'content-type,authorization'
+        }
+      })
+    }
     if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
       const type = url.searchParams.get('type') || undefined
       const severity = url.searchParams.get('severity') || undefined
