@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE: http://localhost
+          VITE_MAPBOX_ACCESS_TOKEN: dummy
+        run: npm run build
+
+      - name: Install worker deps
+        working-directory: worker
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck worker
+        working-directory: worker
+        run: npm run typecheck

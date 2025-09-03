@@ -4,3 +4,4 @@ compatibility_date = "2024-10-01"
 
 [vars]
 ENV = "dev"
+ENV_ORIGIN = "*" # change to your production origin, e.g. https://app.example.com

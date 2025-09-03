@@ -1,8 +1,11 @@
+import { Suspense, lazy } from 'react'
 import { TrafficLights } from './components/TrafficLights'
-import { DisasterMap } from './components/DisasterMap'
 import { RecentDisasters } from './components/RecentDisasters'
 import { Filters } from './components/Filters'
-import { Statistics } from './components/Statistics'
+
+// Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
+const DisasterMap = lazy(() => import('./components/DisasterMap').then(m => ({ default: m.DisasterMap })))
+const Statistics = lazy(() => import('./components/Statistics').then(m => ({ default: m.Statistics })))
 
 export default function App() {
   return (
@@ -18,8 +21,12 @@ export default function App() {
         <Filters />
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3 space-y-6">
-            <DisasterMap />
-            <Statistics />
+            <Suspense fallback={<div className="bg-white border rounded-lg h-[420px] flex items-center justify-center text-sm text-gray-500">Loading map…</div>}>
+              <DisasterMap />
+            </Suspense>
+            <Suspense fallback={<div className="bg-white border rounded-lg p-4 text-sm text-gray-500">Loading charts…</div>}>
+              <Statistics />
+            </Suspense>
           </div>
           <div className="lg:col-span-2">
             <RecentDisasters />
