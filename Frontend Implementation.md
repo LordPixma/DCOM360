@@ -332,7 +332,7 @@ export const DisasterMap: React.FC<DisasterMapProps> = ({
   const { data: disasters, isLoading, error: dataError } = useDisasters({
     country: selectedCountry,
     severity: selectedSeverity,
-    disaster_type: selectedType,
+    type: selectedType,
     limit: 1000 // Get all disasters for map
   });
 
@@ -1584,66 +1584,39 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
       animate={{ opacity: 1, y: 0 }}
     >
       {/* Header */}
-      # GDACS Dashboard - Frontend Components Implementation Guide
-
-## Table of Contents
-1. [Architecture Overview](#architecture-overview)
-2. [Traffic Light Status Panel](#traffic-light-status-panel)
-3. [Interactive Disaster Map](#interactive-disaster-map)
-4. [Recent Disasters Timeline](#recent-disasters-timeline)
-5. [Statistics Dashboard](#statistics-dashboard)
-6. [Filters and Search](#filters-and-search)
-7. [Common UI Components](#common-ui-components)
-8. [Custom Hooks](#custom-hooks)
-9. [State Management](#state-management)
-10. [Performance Optimization](#performance-optimization)
-
-## Architecture Overview
-
-### Technology Stack
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS + Headless UI
-- **State Management**: React Query + Zustand
-- **Animation**: Framer Motion
-- **Maps**: Mapbox GL JS
-- **Charts**: Chart.js + React Chart.js 2
-- **Icons**: Lucide React
-- **Date Handling**: date-fns
-
-### Component Structure
-```
-src/
-├── components/
-│   ├── common/           # Reusable UI components
-│   ├── dashboard/        # Dashboard-specific components
-│   ├── charts/          # Chart components
-│   └── ui/              # Basic UI primitives
-├── hooks/               # Custom React hooks
-├── services/            # API and external services
-├── types/               # TypeScript type definitions
-├── utils/               # Utility functions
-└── styles/              # Global styles
-```
-
-## Traffic Light Status Panel
-
-### TrafficLights Component
-```typescript
-// dashboard/src/components/dashboard/TrafficLights.tsx
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useSummary } from '../../hooks/useSummary';
-
-interface TrafficLightProps {
-  severity: 'red' | 'orange' | 'green';
-  count: number;
-  affectedPopulation: number;
-  isLoading: boolean;
-}
-
-const TrafficLight: React.FC<TrafficLightProps> = ({ 
-  severity, 
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <Filter className="w-5 h-5 text-gray-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+          </div>
+          {activeFiltersCount > 0 && (
+            <motion.span 
+              className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+            >
+              {activeFiltersCount} active
+            </motion.span>
+          )}
+        </div>
+        <div className="flex items-center space-x-2">
+          {activeFiltersCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="text-sm text-gray-500 hover:text-gray-700 font-medium"
+            >
+              Clear all
+            </button>
+          )}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="md:hidden text-gray-500 hover:text-gray-700"
+          >
+            {isExpanded ? <X className="w-5 h-5" /> : <Filter className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
   count, 
   affectedPopulation, 
   isLoading 
@@ -1918,7 +1891,7 @@ export const DisasterMap: React.FC<DisasterMapProps> = ({
   const { data: disasters, isLoading, error: dataError } = useDisasters({
     country: selectedCountry,
     severity: selectedSeverity,
-    disaster_type: selectedType,
+    type: selectedType,
     limit: 1000 // Get all disasters for map
   });
 
@@ -2891,7 +2864,7 @@ import { apiService } from '../services/api';
 interface UseDisastersOptions {
   country?: string;
   severity?: string;
-  disaster_type?: string;
+  type?: string;
   limit?: number;
   offset?: number;
   sort?: 'recent' | 'severity' | 'affected';
@@ -2903,7 +2876,7 @@ export function useDisasters(options: UseDisastersOptions = {}) {
   const {
     country,
     severity,
-    disaster_type,
+  type,
     limit = 50,
     offset = 0,
     sort = 'recent',
@@ -2912,13 +2885,13 @@ export function useDisasters(options: UseDisastersOptions = {}) {
   } = options;
 
   return useQuery<DisasterAPIData[]>({
-    queryKey: ['disasters', 'current', { country, severity, disaster_type, limit, offset, sort }],
+    queryKey: ['disasters', 'current', { country, severity, type, limit, offset, sort }],
     queryFn: async () => {
       const params = new URLSearchParams();
       
       if (country) params.append('country', country);
       if (severity) params.append('severity', severity);
-      if (disaster_type) params.append('disaster_type', disaster_type);
+      if (type) params.append('type', type);
       params.append('limit', limit.toString());
       params.append('offset', offset.toString());
 
@@ -3245,259 +3218,7 @@ This comprehensive frontend components guide provides all the necessary React co
 - **User Experience**: Smooth animations and intuitive interactions
 - **Type Safety**: Full TypeScript support throughout
 - **Modularity**: Reusable components and hooks for maintainability
-              <div className={`bg-gradient-to-r ${severityColors[disaster.severity]} text-white p-6`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-3xl">
-                      {disaster.disaster_type === 'earthquake' ? '🌍' :
-                       disaster.disaster_type === 'cyclone' ? '🌪️' :
-                       disaster.disaster_type === 'flood' ? '🌊' :
-                       disaster.disaster_type === 'wildfire' ? '🔥' :
-                       disaster.disaster_type === 'volcano' ? '🌋' : '⚠️'}
-                    </span>
-                    <div>
-                      <h2 className="text-2xl font-bold">{disaster.title}</h2>
-                      <p className="text-white/90 text-sm">{disaster.location}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={onClose}
-                    className="text-white/80 hover:text-white text-3xl font-light"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Basic Information */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
-                      Basic Information
-                    </h3>
-                    
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Severity:</span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          disaster.severity === 'RED' ? 'bg-red-100 text-red-800' :
-                          disaster.severity === 'ORANGE' ? 'bg-orange-100 text-orange-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {disaster.severity}
-                        </span>
-                      </div>
-                      
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Type:</span>
-                        <span className="font-medium capitalize">{disaster.disaster_type}</span>
-                      </div>
-                      
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Event Time:</span>
-                        <span className="font-medium">
-                          {format(new Date(disaster.event_timestamp), 'PPpp')}
-                        </span>
-                      </div>
-                      
-                      {disaster.country && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Country:</span>
-                          <span className="font-medium">{disaster.country}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Technical Details */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
-                      Technical Details
-                    </h3>
-                    
-                    <div className="space-y-3">
-                      {disaster.magnitude && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Magnitude:</span>
-                          <span className="font-bold text-lg">M{disaster.magnitude}</span>
-                        </div>
-                      )}
-                      
-                      {disaster.depth_km && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Depth:</span>
-                          <span className="font-medium">{disaster.depth_km} km</span>
-                        </div>
-                      )}
-                      
-                      {disaster.wind_speed && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Wind Speed:</span>
-                          <span className="font-bold text-lg">{disaster.wind_speed} km/h</span>
-                        </div>
-                      )}
-                      
-                      {disaster.affected_population > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">People Affected:</span>
-                          <span className="font-bold text-lg text-red-600">
-                            {disaster.affected_population.toLocaleString()}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {disaster.coordinates && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Coordinates:</span>
-                          <span className="font-mono text-sm">
-                            {disaster.coordinates.lat.toFixed(3)}, {disaster.coordinates.lng.toFixed(3)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
-                {disaster.description && (
-                  <div className="mt-6 pt-6 border-t">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Description</h3>
-                    <p className="text-gray-700 leading-relaxed">{disaster.description}</p>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="mt-6 pt-6 border-t flex justify-end space-x-3">
-                  <button
-                    onClick={onClose}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Close
-                  </button>
-                  {disaster.coordinates && (
-                    <button
-                      onClick={() => {
-                        window.open(`https://www.google.com/maps?q=${disaster.coordinates!.lat},${disaster.coordinates!.lng}`, '_blank');
-                      }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      View on Map
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-};
-
-export const RecentDisasters: React.FC = () => {
-  const [selectedDisaster, setSelectedDisaster] = useState<DisasterAPIData | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  
-  const { data: disasters, isLoading, error } = useDisasters({ 
-    limit: 20,
-    sort: 'recent' 
-  });
-
-  const handleDisasterClick = (disaster: DisasterAPIData) => {
-    setSelectedDisaster(disaster);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setSelectedDisaster(null);
-  };
-
-  if (error) {
-    return (
-      <motion.div 
-        className="bg-red-50 border border-red-200 rounded-xl p-6"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        <div className="flex items-center space-x-3">
-          <span className="text-red-500 text-2xl">⚠️</span>
-          <div>
-            <h3 className="text-red-800 font-semibold">Failed to load recent disasters</h3>
-            <p className="text-red-600 text-sm mt-1">Please check your connection and try again</p>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Recent Disasters</h2>
-          <p className="text-gray-600 text-sm mt-1">
-            Latest disaster reports from around the world
-          </p>
-        </div>
-        {disasters && disasters.length > 0 && (
-          <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {disasters.length} disaster{disasters.length !== 1 ? 's' : ''} found
-          </div>
-        )}
-      </div>
-      
-      {isLoading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <motion.div
-              key={i}
-              className="animate-pulse bg-gray-200 rounded-xl h-24"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: i * 0.1 }}
-            />
-          ))}
-        </div>
-      ) : disasters && disasters.length > 0 ? (
-        <motion.div 
-          className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          {disasters.map((disaster, index) => (
-            <DisasterCard
-              key={disaster.id}
-              disaster={disaster}
-              onClick={() => handleDisasterClick(disaster)}
-              index={index}
-            />
-          ))}
-        </motion.div>
-      ) : (
-        <motion.div 
-          className="text-center py-12 bg-gradient-to-br from-green-50 to-blue-50 rounded-xl border border-green-200"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <div className="text-6xl mb-4">🌍</div>
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">All Clear!</h3>
-          <p className="text-gray-600">No recent disasters reported</p>
-          <p className="text-sm text-gray-500 mt-2">That's wonderful news for everyone!</p>
-        </motion.div>
-      )}
-
-      {/* Disaster Details Modal */}
-      <DisasterDetailsModal
-        disaster={selectedDisaster}
-        isOpen={showModal}
-        onClose={handleCloseModal}
-      />
-    </div>
-  );
-};
+ 
 ```
 
 ## Statistics Dashboard
@@ -3937,67 +3658,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
     >
-      {/* Header */}
-      # GDACS Dashboard - Frontend Components Implementation Guide
-
-## Table of Contents
-1. [Architecture Overview](#architecture-overview)
-2. [Traffic Light Status Panel](#traffic-light-status-panel)
-3. [Interactive Disaster Map](#interactive-disaster-map)
-4. [Recent Disasters Timeline](#recent-disasters-timeline)
-5. [Statistics Dashboard](#statistics-dashboard)
-6. [Filters and Search](#filters-and-search)
-7. [Common UI Components](#common-ui-components)
-8. [Custom Hooks](#custom-hooks)
-9. [State Management](#state-management)
-10. [Performance Optimization](#performance-optimization)
-
-## Architecture Overview
-
-### Technology Stack
-- **Framework**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: Tailwind CSS + Headless UI
-- **State Management**: React Query + Zustand
-- **Animation**: Framer Motion
-- **Maps**: Mapbox GL JS
-- **Charts**: Chart.js + React Chart.js 2
-- **Icons**: Lucide React
-- **Date Handling**: date-fns
-
-### Component Structure
-```
-src/
-├── components/
-│   ├── common/           # Reusable UI components
-│   ├── dashboard/        # Dashboard-specific components
-│   ├── charts/          # Chart components
-│   └── ui/              # Basic UI primitives
-├── hooks/               # Custom React hooks
-├── services/            # API and external services
-├── types/               # TypeScript type definitions
-├── utils/               # Utility functions
-└── styles/              # Global styles
-```
-
-## Traffic Light Status Panel
-
-### TrafficLights Component
-```typescript
-// dashboard/src/components/dashboard/TrafficLights.tsx
-import React from 'react';
-import { motion } from 'framer-motion';
-import { useSummary } from '../../hooks/useSummary';
-
-interface TrafficLightProps {
-  severity: 'red' | 'orange' | 'green';
-  count: number;
-  affectedPopulation: number;
-  isLoading: boolean;
-}
-
-const TrafficLight: React.FC<TrafficLightProps> = ({ 
-  severity, 
+      {/* Header (duplicate removed) */}
   count, 
   affectedPopulation, 
   isLoading 
@@ -4272,7 +3933,7 @@ export const DisasterMap: React.FC<DisasterMapProps> = ({
   const { data: disasters, isLoading, error: dataError } = useDisasters({
     country: selectedCountry,
     severity: selectedSeverity,
-    disaster_type: selectedType,
+  type: selectedType,
     limit: 1000 // Get all disasters for map
   });
 
