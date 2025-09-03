@@ -22,6 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            ingest-worker/package-lock.json
       - name: Deploy ingest-worker
         working-directory: ingest-worker
         run: npx wrangler@4 deploy
@@ -37,6 +40,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            worker/package-lock.json
       - name: Deploy worker
         working-directory: worker
         run: npx wrangler@4 deploy
@@ -105,6 +111,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
       - name: Ensure jq is installed
         run: |
           sudo apt-get update -y
