@@ -14,3 +14,29 @@ database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
 [[kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
+
+# Staging environment (override bindings/vars as needed)
+[env.staging]
+[env.staging.vars]
+ENV = "staging"
+ENV_ORIGIN = "https://dcom360-frontend.pages.dev" # set to your staging Pages hostname
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "dcom360-db" # replace if using a separate staging DB
+database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20" # replace with staging DB id
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "46818e79770044efa2e863ca0b0f465a" # replace with staging KV id
+
+# Production environment
+[env.production]
+[env.production.vars]
+ENV = "prod"
+ENV_ORIGIN = "https://dcom360-frontend.pages.dev"
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "dcom360-db"
+database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "46818e79770044efa2e863ca0b0f465a"

@@ -15,3 +15,25 @@ id = "46818e79770044efa2e863ca0b0f465a"
 
 [vars]
 INGEST_TOKEN = "dev-token-123" # set via `wrangler secret put INGEST_TOKEN` in production
+
+[env.staging]
+[env.staging.vars]
+INGEST_TOKEN = "dev-token-123"
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "dcom360-db"
+database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "46818e79770044efa2e863ca0b0f465a"
+
+[env.production]
+[env.production.vars]
+INGEST_TOKEN = "" # use secret in prod
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "dcom360-db"
+database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "46818e79770044efa2e863ca0b0f465a"
