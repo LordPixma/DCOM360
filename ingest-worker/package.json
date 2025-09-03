@@ -1,5 +1,5 @@
 {
-  "name": "dcom360-ingest-worker",
+  "name": "flare360-ingest-worker",
   "private": true,
   "version": "0.1.0",
   "type": "module",

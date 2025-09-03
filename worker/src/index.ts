@@ -1,5 +1,5 @@
 import { Env, Disaster, DisasterRow } from './types'
-import { json, mapSeverityToClient } from './utils'
+import { json, mapSeverityToClient, buildCorsHeaders } from './utils'
 import { cache } from './cache'
 
 export interface APIResponse<T> {
@@ -17,13 +17,13 @@ const mockDisasters: Disaster[] = [
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const allowOrigin = env.ENV_ORIGIN || '*'
+  const cors = buildCorsHeaders(env, request)
     const url = new URL(request.url)
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
+    return new Response(null, {
         status: 204,
         headers: {
-          'access-control-allow-origin': allowOrigin,
+      ...cors,
           'access-control-allow-methods': 'GET,OPTIONS',
           'access-control-allow-headers': 'content-type,authorization'
         }
@@ -32,7 +32,7 @@ export default {
     if (url.pathname === '/api/health') {
       return json(
         { success: true, data: { status: 'ok', ts: new Date().toISOString() } },
-        { headers: { 'access-control-allow-origin': allowOrigin } }
+        { headers: { ...cors } }
       )
     }
     if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
@@ -47,7 +47,7 @@ export default {
         const cacheKey = `disasters:current:${type||'all'}:${severity||'all'}:${country||'all'}:${limit}:${offset}`
         const cached = await cache.get(env, cacheKey)
         if (cached) {
-          return new Response(cached, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
         let sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
                    FROM disasters WHERE is_active = 1`
@@ -70,18 +70,18 @@ export default {
           title: r.title,
           occurred_at: r.event_timestamp,
         }))
-        const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
+    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
-  return new Response(jsonStr, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+  return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
       } catch (err) {
         // Fallback to mock data for now
         let items = mockDisasters
         if (type) items = items.filter(d => d.type === type)
         if (severity) items = items.filter(d => d.severity === severity)
         if (country) items = items.filter(d => d.country === country)
-        const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset, fallback: true } }
-  return json(body, { headers: { 'access-control-allow-origin': allowOrigin } })
+    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset, fallback: true } }
+  return json(body, { headers: { ...cors } })
       }
     }
     if (url.pathname === '/api/disasters/summary' && request.method === 'GET') {
@@ -90,21 +90,21 @@ export default {
         const cacheKey = 'disasters:summary'
         const cached = await cache.get(env, cacheKey)
         if (cached) {
-          return new Response(cached, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
         const typeSql = `SELECT disaster_type as type, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY disaster_type`
         const rows = await env.DB.prepare(typeSql).all<{ type: string; count: number }>()
         const totals = rows.results
-        const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals } }
+    const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
-  return new Response(jsonStr, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+  return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
       } catch (err) {
         const counts: Record<string, number> = {}
         for (const d of mockDisasters) counts[d.type] = (counts[d.type] || 0) + 1
         const totals = Object.entries(counts).map(([type, count]) => ({ type, count }))
-        const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals }, meta: { fallback: true } }
-  return json(body, { headers: { 'access-control-allow-origin': allowOrigin } })
+    const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals }, meta: { fallback: true } }
+  return json(body, { headers: { ...cors } })
       }
     }
     if (url.pathname === '/api/disasters/history' && request.method === 'GET') {
@@ -114,7 +114,7 @@ export default {
         const cacheKey = `disasters:history:${days}`
         const cached = await cache.get(env, cacheKey)
         if (cached) {
-          return new Response(cached, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
         const sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
                      FROM disasters
@@ -131,14 +131,14 @@ export default {
           title: r.title,
           occurred_at: r.event_timestamp,
         }))
-        const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { days } }
+    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { days } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
-  return new Response(jsonStr, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+  return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
       } catch (err) {
         // Fallback: use mock and pretend all within period
-        const body: APIResponse<Disaster[]> = { success: true, data: mockDisasters, meta: { days, fallback: true } }
-  return json(body, { headers: { 'access-control-allow-origin': allowOrigin } })
+    const body: APIResponse<Disaster[]> = { success: true, data: mockDisasters, meta: { days, fallback: true } }
+  return json(body, { headers: { ...cors } })
       }
     }
     if (url.pathname === '/api/countries' && request.method === 'GET') {
@@ -147,21 +147,21 @@ export default {
         const cacheKey = 'countries:list'
         const cached = await cache.get(env, cacheKey)
         if (cached) {
-          return new Response(cached, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
         const sql = `SELECT code, name FROM countries ORDER BY name`
         const rows = await env.DB.prepare(sql).all<{ code: string; name: string }>()
-        const body: APIResponse<{ code: string; name: string }[]> = { success: true, data: rows.results }
+    const body: APIResponse<{ code: string; name: string }[]> = { success: true, data: rows.results }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 3600)
-  return new Response(jsonStr, { headers: { 'content-type': 'application/json', 'access-control-allow-origin': allowOrigin } })
+  return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
       } catch (err) {
         // Minimal fallback list
-        const data = [
+    const data = [
           { code: 'US', name: 'United States' },
           { code: 'NG', name: 'Nigeria' }
         ]
-  return json({ success: true, data, meta: { fallback: true } }, { headers: { 'access-control-allow-origin': allowOrigin } })
+  return json({ success: true, data, meta: { fallback: true } }, { headers: { ...cors } })
       }
     }
     return new Response('Not found', { status: 404 })

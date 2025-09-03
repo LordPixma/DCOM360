@@ -1,4 +1,4 @@
-name = "dcom360-ingest"
+name = "flare360-ingest"
 main = "src/index.ts"
 compatibility_date = "2024-10-01"
 

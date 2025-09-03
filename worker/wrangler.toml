@@ -1,11 +1,11 @@
 account_id = "1e54c42267499cd9093c467c8b5517d1"
-name = "dcom360-worker"
+name = "flare360-worker"
 main = "src/index.ts"
 compatibility_date = "2024-10-01"
 
 [vars]
 ENV = "dev"
-ENV_ORIGIN = "https://dcom360-frontend.pages.dev" # tightened CORS for production frontend
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev" # allow both during migration
 [[d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
@@ -19,7 +19,7 @@ id = "46818e79770044efa2e863ca0b0f465a"
 [env.staging]
 [env.staging.vars]
 ENV = "staging"
-ENV_ORIGIN = "https://dcom360-frontend.pages.dev" # set to your staging Pages hostname
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev" # set to both during migration
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db" # replace if using a separate staging DB
@@ -32,7 +32,7 @@ id = "46818e79770044efa2e863ca0b0f465a" # replace with staging KV id
 [env.production]
 [env.production.vars]
 ENV = "prod"
-ENV_ORIGIN = "https://dcom360-frontend.pages.dev"
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"

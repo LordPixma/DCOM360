@@ -6,17 +6,17 @@ set -euo pipefail
 
 usage() {
   cat <<EOF
-Usage: $0 --account-id <id> [--db-name dcom360-db] [--kv-name dcom360-cache] [--pages-name dcom360-frontend]
+Usage: $0 --account-id <id> [--db-name flare360-db] [--kv-name flare360-cache] [--pages-name flare360-frontend]
 
 Examples:
-  $0 --account-id 1234567890abcdef --db-name dcom360-db --kv-name dcom360-cache --pages-name dcom360-frontend
+  $0 --account-id 1234567890abcdef --db-name flare360-db --kv-name flare360-cache --pages-name flare360-frontend
 EOF
 }
 
 ACCOUNT_ID=""
-DB_NAME="dcom360-db"
-KV_NAME="dcom360-cache"
-PAGES_NAME="dcom360-frontend"
+DB_NAME="flare360-db"
+KV_NAME="flare360-cache"
+PAGES_NAME="flare360-frontend"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

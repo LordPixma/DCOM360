@@ -1,5 +1,5 @@
 {
-  "name": "dcom360-worker",
+  "name": "flare360-worker",
   "private": true,
   "version": "0.1.0",
   "type": "module",

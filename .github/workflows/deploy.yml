@@ -62,8 +62,8 @@ jobs:
       - name: Prepare URLs
         id: prep
         run: |
-          API_URL="${WORKER_URL:-https://dcom360-worker.samuel-1e5.workers.dev}"
-          ING_URL="${INGEST_URL:-https://dcom360-ingest.samuel-1e5.workers.dev}"
+          API_URL="${WORKER_URL:-https://flare360-worker.samuel-1e5.workers.dev}"
+          ING_URL="${INGEST_URL:-https://flare360-ingest.samuel-1e5.workers.dev}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "ing_url=$ING_URL" >> $GITHUB_OUTPUT
       - name: Check /api/health
@@ -135,7 +135,7 @@ jobs:
       - name: Invalidate preview deployments (best-effort)
         run: |
           set -euo pipefail
-          PROJECT="${PAGES_PROJECT_NAME:-dcom360-frontend}"
+          PROJECT="${PAGES_PROJECT_NAME:-flare360-frontend}"
           # List deployments and delete previews (best-effort; ignore failures if API differs)
           curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/deployments" \
