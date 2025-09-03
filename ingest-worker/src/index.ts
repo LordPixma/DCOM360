@@ -1,0 +1,88 @@
+import { parseEmail } from './parser'
+
+interface Env {
+  DB: D1Database
+  CACHE?: KVNamespace
+  INGEST_TOKEN?: string
+}
+
+function json(data: unknown, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' }, ...init })
+}
+
+export default {
+  async fetch(req: Request, env: Env): Promise<Response> {
+    const url = new URL(req.url)
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST,OPTIONS', 'access-control-allow-headers': 'content-type,authorization' } })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/ingest/email') {
+      const auth = req.headers.get('authorization') || ''
+      const token = auth.replace(/^Bearer\s+/i, '')
+      if (!env.INGEST_TOKEN || token !== env.INGEST_TOKEN) {
+        return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+      }
+      let payload: any
+      try {
+        payload = await req.json()
+      } catch {
+        return json({ success: false, error: { code: 'BAD_REQUEST', message: 'Invalid JSON' } }, { status: 400 })
+      }
+
+      const subject = String(payload.subject || '')
+      const body = String(payload.body || '')
+      if (!subject && !body) {
+        return json({ success: false, error: { code: 'BAD_REQUEST', message: 'Missing subject/body' } }, { status: 400 })
+      }
+
+      const start = Date.now()
+      const parsed = parseEmail(subject, body)
+
+      // Upsert into disasters by external_id
+      const existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: number; severity: string }>()
+
+      let newDisasters = 0
+      let updatedDisasters = 0
+      if (!existing) {
+        await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
+          .run()
+        newDisasters = 1
+      } else {
+        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
+          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
+          .run()
+        if (existing.severity !== parsed.severity) {
+          await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
+                                VALUES (?, ?, ?, ?)`)
+            .bind(existing.id, existing.severity, parsed.severity, 'email_update')
+            .run()
+        }
+        updatedDisasters = 1
+      }
+
+      // Log processing
+      await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
+                            VALUES (?, ?, ?, ?, 'OK', ?, ?)`)
+        .bind(new Date().toISOString().slice(0, 10), 1, newDisasters, updatedDisasters, Date.now() - start, (subject.length + body.length))
+        .run()
+
+      // Invalidate cache keys
+      if (env.CACHE) {
+        const keys = [
+          'disasters:summary',
+          'disasters:current:all:all:all:50:0',
+          'disasters:history:7',
+          'countries:list',
+        ]
+        await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+      }
+
+      return json({ success: true, data: { processed: 1, newDisasters, updatedDisasters } })
+    }
+
+    return new Response('Not found', { status: 404 })
+  }
+}

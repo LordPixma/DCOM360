@@ -2,14 +2,16 @@ import { useEffect, useRef } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
+import { useAppStore } from '@/store/appStore'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string
 
 export function DisasterMap() {
+  const filters = useAppStore((s) => s.filters)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markersRef = useRef<mapboxgl.Marker[]>([])
-  const { data, isLoading } = useDisasters({ limit: 200 })
+  const { data, isLoading } = useDisasters({ limit: 200, ...filters })
 
   // Initialize map once
   useEffect(() => {

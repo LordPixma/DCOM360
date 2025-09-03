@@ -1,8 +1,10 @@
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
+import { useAppStore } from '@/store/appStore'
 import { format } from 'date-fns'
 
 export function RecentDisasters() {
-  const { data, isLoading } = useDisasters({ limit: 10 })
+  const filters = useAppStore((s) => s.filters)
+  const { data, isLoading } = useDisasters({ limit: 10, ...filters })
   return (
     <div className="bg-white border rounded-lg p-3">
       <div className="text-sm font-medium mb-2">Recent Disasters</div>

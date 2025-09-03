@@ -1,13 +1,27 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { TrafficLights } from './components/TrafficLights'
 import { RecentDisasters } from './components/RecentDisasters'
 import { Filters } from './components/Filters'
+import { useAppStore } from '@/store/appStore'
+import { useQueryClient } from '@tanstack/react-query'
 
 // Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
 const DisasterMap = lazy(() => import('./components/DisasterMap').then(m => ({ default: m.DisasterMap })))
 const Statistics = lazy(() => import('./components/Statistics').then(m => ({ default: m.Statistics })))
 
 export default function App() {
+  const { preferences } = useAppStore()
+  const qc = useQueryClient()
+
+  useEffect(() => {
+    if (!preferences.autoRefresh) return
+    const id = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ['disasters'] })
+      qc.invalidateQueries({ queryKey: ['countries'] })
+    }, preferences.refreshInterval)
+    return () => clearInterval(id)
+  }, [preferences.autoRefresh, preferences.refreshInterval, qc])
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b sticky top-0 z-10">

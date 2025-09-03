@@ -16,6 +16,7 @@ export function useSummary() {
     queryFn: async () => {
       const res = await api.get<APIResponse<SummaryResponse>>('/api/disasters/summary')
       return res.data.data
-    }
+  },
+  staleTime: 1000 * 60, // 1 min
   })
 }

@@ -35,6 +35,7 @@ export function useDisasters(opts: DisastersQuery = {}) {
     queryFn: async () => {
       const res = await api.get<APIResponse<Disaster[]>>(`/api/disasters/current?${params.toString()}`)
       return res.data.data
-    },
+  },
+  staleTime: 1000 * 60, // 1 min
   })
 }

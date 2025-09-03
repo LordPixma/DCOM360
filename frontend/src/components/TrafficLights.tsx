@@ -1,4 +1,5 @@
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
+import { useAppStore } from '@/store/appStore'
 
 const severityConfig = {
   green: { label: 'Low', className: 'bg-green-500' },
@@ -7,7 +8,8 @@ const severityConfig = {
 }
 
 export function TrafficLights() {
-  const { data, isLoading } = useDisasters({ limit: 50 })
+  const filters = useAppStore((s) => s.filters)
+  const { data, isLoading } = useDisasters({ limit: 50, ...filters })
   const counts = { green: 0, yellow: 0, red: 0 }
   data?.forEach((d: Disaster) => { counts[d.severity as 'green'|'yellow'|'red']++ })
 
