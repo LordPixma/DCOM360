@@ -26,7 +26,10 @@ export default function App() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">DCOM360</h1>
+          <div className="flex items-center gap-2">
+            <img src="/logo.svg" alt="Flare360 logo" className="h-6 w-6" />
+            <h1 className="text-xl font-semibold">Flare360</h1>
+          </div>
           <nav className="text-sm text-gray-600">Disaster Monitoring Dashboard</nav>
         </div>
       </header>

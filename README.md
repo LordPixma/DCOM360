@@ -1,4 +1,4 @@
-# DCOM360
+# Flare360
 
 This repo contains a Vite + React frontend and a Cloudflare Worker mock API per the LLD/HLD.
 

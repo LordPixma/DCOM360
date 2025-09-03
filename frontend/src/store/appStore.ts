@@ -29,6 +29,6 @@ export const useAppStore = create<AppState>()(
       clearFilters: () => set({ filters: {} }),
       setPreferences: (p) => set((s) => ({ preferences: { ...s.preferences, ...p } })),
     }),
-    { name: 'dcom360-app' }
+  { name: 'flare360-app' }
   )
 )
