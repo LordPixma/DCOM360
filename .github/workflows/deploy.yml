@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies (ingest-worker)
         working-directory: ingest-worker
         run: npm ci --no-audit --no-fund
+      - name: Deploy ingest-worker
+        working-directory: ingest-worker
+        run: npx wrangler@4 deploy --env production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
       - name: Configure ingest secret (production)
         working-directory: ingest-worker
         env:
@@ -36,15 +42,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           # Store the ingest token as a Cloudflare Worker secret (production env)
+          # Deploying first removes any legacy plain var binding so the secret name won't conflict.
           set -euo pipefail
           : "${INGEST_TOKEN:?Missing INGEST_TOKEN}"
           printf "%s" "$INGEST_TOKEN" | npx wrangler@4 secret put INGEST_TOKEN --env production
-      - name: Deploy ingest-worker
-        working-directory: ingest-worker
-        run: npx wrangler@4 deploy --env production
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
 
   deploy-api:
     name: Deploy API Worker
