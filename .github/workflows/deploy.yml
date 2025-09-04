@@ -141,24 +141,40 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y jq
+      - name: Resolve Pages project name
+        id: project
+        run: |
+          NAME="${PAGES_PROJECT_NAME:-flare360-frontend}"
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+      - name: Ensure Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          NAME="${{ steps.project.outputs.name }}"
+          # List existing projects; create if missing
+          if ! npx wrangler@4 pages project list | grep -q "\b$NAME\b"; then
+            npx wrangler@4 pages project create "$NAME" --production-branch main
+          fi
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_API_BASE: ${{ env.WORKER_URL }}
+          VITE_API_BASE: ${{ vars.WORKER_URL }}
           VITE_MAPBOX_ACCESS_TOKEN: ${{ secrets.VITE_MAPBOX_ACCESS_TOKEN }}
         run: |
           npm ci --no-audit --no-fund
           npm run build
       - name: Deploy to Pages (production)
         run: |
-          npx wrangler@4 pages deploy frontend/dist --project-name "${PAGES_PROJECT_NAME}" --branch main
+          npx wrangler@4 pages deploy frontend/dist --project-name "${{ steps.project.outputs.name }}" --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
       - name: Invalidate preview deployments (best-effort)
         run: |
           set -euo pipefail
-          PROJECT="${PAGES_PROJECT_NAME:-flare360-frontend}"
+          PROJECT="${{ steps.project.outputs.name }}"
           # List deployments and delete previews (best-effort; ignore failures if API differs)
           curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/deployments" \
