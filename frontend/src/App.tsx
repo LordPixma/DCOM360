@@ -43,68 +43,72 @@ export default function App() {
   }, [dark])
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 bg-brand-primary text-white px-3 py-2 rounded-md shadow-md z-50">Skip to main content</a>
-      <header className="glass border-b sticky top-0 z-20">
-        <div className="max-w-[1600px] mx-auto px-4 h-[72px] flex items-center gap-4">
-          <div className="flex items-center gap-2 mr-2">
-            <img src="/logo.svg" alt="Flare360 logo" className="h-8 w-8" />
-            <span className="text-lg font-semibold">Flare360</span>
+      <header className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center shadow-md">
+                <span className="text-white font-bold text-lg">F</span>
+              </div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Flare360</h1>
+            </div>
           </div>
 
-          <div className="hidden md:flex items-center flex-1 max-w-md">
+          <div className="hidden md:flex items-center flex-1 max-w-lg mx-8">
             <div className="w-full relative">
               <input
                 aria-label="Global search"
-                placeholder="Search…"
-                className="w-full rounded-lg border border-gray-300 bg-white/70 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                placeholder="Search disasters, locations, or events..."
+                className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 pl-11 pr-4 py-2.5 text-sm placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all duration-200"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-4">
-            <div className="flex items-center text-xs text-gray-600" aria-live="polite">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700" aria-live="polite">
               {online ? (
-                <span className="inline-flex items-center gap-1 text-green-600"><Wifi className="h-4 w-4"/> Online</span>
+                <>
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Live</span>
+                </>
               ) : (
-                <span className="inline-flex items-center gap-1 text-red-600"><WifiOff className="h-4 w-4"/> Offline</span>
+                <>
+                  <div className="h-2 w-2 bg-red-500 rounded-full"></div>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Offline</span>
+                </>
               )}
             </div>
-            <button className="relative p-2 rounded-full hover:bg-gray-100" aria-label="Notifications">
-              <Bell className="h-5 w-5 text-gray-700" />
-              <span className="absolute -top-0.5 -right-0.5 inline-block h-2 w-2 bg-brand-primary rounded-full" aria-hidden />
+            <button className="relative p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200" aria-label="Notifications">
+              <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              <span className="absolute -top-1 -right-1 inline-block h-3 w-3 bg-orange-500 rounded-full ring-2 ring-white dark:ring-slate-800" aria-hidden />
             </button>
             <button
               onClick={() => setDark((d) => !d)}
-              className="p-2 rounded-full hover:bg-gray-100"
+              className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200"
               aria-label="Toggle theme"
               title="Toggle theme"
             >
-              {dark ? <Sun className="h-5 w-5 text-gray-700"/> : <Moon className="h-5 w-5 text-gray-700"/>}
+              {dark ? <Sun className="h-5 w-5 text-slate-600 dark:text-slate-400"/> : <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400"/>}
             </button>
-            <div className="h-9 w-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 select-none" aria-label="User Menu">AS</div>
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-md select-none" aria-label="User Menu">AS</div>
           </div>
         </div>
       </header>
-      <main id="main" className="flex-1 max-w-[1600px] mx-auto w-full px-4 py-6 space-y-6">
+      <main id="main" className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 space-y-8">
         <TrafficLights />
-        <div className="space-y-6 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
-          <div className="order-2 lg:order-1 lg:w-[320px] lg:flex-none">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+          <div className="xl:col-span-3 space-y-6">
             <Filters />
-          </div>
-          <div className="order-1 lg:order-2 lg:flex-1">
-            <Suspense fallback={<div className="bg-white border rounded-lg h-[420px] flex items-center justify-center text-sm text-gray-500">Loading map…</div>}>
-              <DisasterMap />
-            </Suspense>
-          </div>
-        </div>
-        <div className="space-y-6 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
-          <div className="order-2 lg:order-1 lg:w-[320px] lg:flex-none">
             <RecentDisasters />
           </div>
-          <div className="order-1 lg:order-2 lg:flex-1">
-            <Suspense fallback={<div className="bg-white border rounded-lg p-4 text-sm text-gray-500">Loading charts…</div>}>
+          <div className="xl:col-span-9 space-y-6">
+            <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl h-[500px] flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">Loading map…</div>}>
+              <DisasterMap />
+            </Suspense>
+            <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-sm text-slate-500 dark:text-slate-400">Loading charts…</div>}>
               <Statistics />
             </Suspense>
           </div>

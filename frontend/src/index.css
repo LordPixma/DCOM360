@@ -9,21 +9,65 @@ html, body, #root { height: 100%; }
 
 /* App background */
 body {
-	@apply bg-gray-bg text-charcoal font-sans antialiased;
+	@apply bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans antialiased;
 }
 
 /* Accessible focus ring */
 :where(button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
-	outline: 2px solid theme('colors.brand.primary');
+	outline: 2px solid theme('colors.blue.500');
 	outline-offset: 2px;
 	border-radius: 6px;
 }
 
-/* Glass header helper */
-.glass {
-	background: rgba(255,255,255,0.95);
-	-webkit-backdrop-filter: saturate(180%) blur(10px);
-	backdrop-filter: saturate(180%) blur(10px);
+/* Custom Mapbox popup styles */
+.mapboxgl-popup-content {
+	@apply rounded-xl border border-slate-200 shadow-xl p-0 !important;
+	font-family: 'Inter', sans-serif !important;
+}
+
+.mapboxgl-popup-tip {
+	@apply !border-t-slate-200;
+}
+
+.mapboxgl-popup-close-button {
+	@apply text-slate-400 hover:text-slate-600 text-lg leading-none !important;
+	right: 8px !important;
+	top: 8px !important;
+}
+
+/* Dark mode popup support */
+.dark .mapboxgl-popup-content {
+	@apply !bg-slate-800 !border-slate-600;
+}
+
+.dark .mapboxgl-popup-tip {
+	@apply !border-t-slate-600;
+}
+
+.dark .mapboxgl-popup-close-button {
+	@apply !text-slate-400 hover:!text-slate-200;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+	@apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+	@apply bg-slate-100 dark:bg-slate-700;
+}
+
+::-webkit-scrollbar-thumb {
+	@apply bg-slate-300 dark:bg-slate-500 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-slate-400 dark:bg-slate-400;
+}
+
+/* Selection styling */
+::selection {
+	@apply bg-blue-100 text-blue-900;
 }
 
 /* Reduce motion */
