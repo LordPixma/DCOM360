@@ -1,4 +1,5 @@
 import { parseEmail, parseEmailMulti, type ParsedEmail } from './parser'
+import PostalMime from 'postal-mime'
 
 interface Env {
   DB: D1Database
@@ -116,15 +117,15 @@ export default {
         return
       }
 
-      // Decode RFC822 and split headers/body
-      const rawBuf = await new Response(message.raw).arrayBuffer()
-      const text = new TextDecoder('utf-8').decode(rawBuf)
-      const parts = text.split(/\r?\n\r?\n/)
-      const headers = parts[0] || ''
-      const body = parts.slice(1).join('\n\n') || text
-      const hSubject = (/^Subject:\s*(.+)$/gim.exec(headers)?.[1] || '').trim()
-      const subject = message.headers?.get('Subject') || message.headers?.get('subject') || hSubject
-      const parsedMany = parseEmailMulti(subject, body)
+  // Decode RFC822 with postal-mime for robust MIME parsing
+  const rawBuf = await new Response(message.raw).arrayBuffer()
+  const parser = new PostalMime()
+  const mail = await parser.parse(rawBuf)
+  const subject = mail.subject || message.headers?.get('Subject') || ''
+  const plain = mail.text || ''
+  const html = mail.html || ''
+  const body = plain || stripHtmlToPlain(html)
+  const parsedMany = parseEmailMulti(subject, body)
       const t0 = Date.now()
       let newDisasters = 0
       let updatedDisasters = 0
@@ -148,4 +149,15 @@ export default {
       console.error('Email processing failed:', err)
     }
   }
+}
+
+function stripHtmlToPlain(html: string): string {
+  // naive fallback: remove tags, decode basic entities, collapse whitespace
+  const noTags = html.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ')
+  const entities = noTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+  return entities.replace(/[\t\x0B\f\r]+/g, ' ').replace(/\n\s*\n\s*/g, '\n\n').trim()
 }
