@@ -41,3 +41,9 @@ Subject is also considered for ID/title. The parser is tolerant and falls back w
 - If severity changes, entry added to `disaster_history`.
 - Processing summary appended into `processing_logs`.
 - Cache keys invalidated in KV: `disasters:summary`, `disasters:current:*`, `disasters:history:7`, `countries:list`.
+
+## Newsletter parsing and normalization
+
+- Multi-event parsing: GDACS daily newsletters are parsed to extract multiple earthquakes and tropical cyclones in one run.
+- Country normalization: Country names are normalized to ISO-2 codes where possible; the original name is kept in `metadata.original_country_name`.
+- Cyclone enrichment: Attempts to extract `metadata.category` (1–5) and the maximum wind speed `metadata.max_wind_kmh` when present in the newsletter text.
