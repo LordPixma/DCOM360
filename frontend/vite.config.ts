@@ -13,5 +13,21 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true
+  },
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core libraries
+          react: ['react', 'react-dom'],
+          query: ['@tanstack/react-query'],
+          charts: ['chart.js', 'react-chartjs-2'],
+          lucide: ['lucide-react'],
+          // Heavy mapbox chunk
+          mapbox: ['mapbox-gl']
+        }
+      }
+    }
   }
 })

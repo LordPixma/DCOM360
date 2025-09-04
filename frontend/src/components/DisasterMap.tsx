@@ -90,13 +90,15 @@ export function DisasterMap() {
     })
 
     if (added) {
-      map.fitBounds(bounds, { padding: 60, maxZoom: 6 })
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+      const padding = vw < 640 ? 24 : vw < 1024 ? 40 : 60
+      map.fitBounds(bounds, { padding, maxZoom: 6 })
     }
   }, [data])
 
   return (
     <div className="relative w-full border-b border-slate-200 dark:border-slate-700">
-      <div ref={containerRef} className="h-[56vh] min-h-[420px] w-full" />
+      <div ref={containerRef} className="h-[48vh] min-h-[320px] sm:h-[56vh] sm:min-h-[420px] w-full" />
       {!MAPBOX_TOKEN && (
         <div className="absolute inset-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
           <div className="text-center">
@@ -107,17 +109,17 @@ export function DisasterMap() {
         </div>
       )}
       {/* Overlay header */}
-      <div className="pointer-events-none absolute top-4 left-6 right-6 flex items-start justify-between">
-        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 shadow-lg pointer-events-auto">
+      <div className="pointer-events-none absolute top-3 sm:top-4 left-3 right-3 sm:left-6 sm:right-6 flex flex-col gap-3 sm:flex-row items-start justify-between">
+        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 sm:px-4 shadow-lg pointer-events-auto">
           <h3 className="font-bold text-slate-900 dark:text-white">Global Map</h3>
           <p className="text-xs text-slate-600 dark:text-slate-400">{isLoading ? 'Loading events...' : `${data?.length || 0} active events worldwide`}</p>
         </div>
-        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-lg pointer-events-auto">
-          <div className="font-semibold text-slate-900 dark:text-white text-xs mb-2 flex items-center gap-2">
+        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-2 sm:p-3 shadow-lg pointer-events-auto">
+          <div className="font-semibold text-slate-900 dark:text-white text-xs mb-1 sm:mb-2 flex items-center gap-2">
             <Layers className="h-4 w-4" />
             Legend
           </div>
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs">
             <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-green-500"></span> Monitoring</div>
             <div className="flex items-center gap-2"><span className="h-4 w-4 rounded-full bg-orange-500"></span> Warning</div>
             <div className="flex items-center gap-2"><span className="h-5 w-5 rounded-full bg-red-500"></span> Critical</div>

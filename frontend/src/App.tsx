@@ -123,15 +123,15 @@ export default function App() {
         </section>
 
         {/* Content below hero */}
-        <section className="w-full px-6 py-8 space-y-8">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-            <div className="xl:col-span-8 space-y-8 order-2 xl:order-1">
+        <section className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 sm:gap-8">
+            <div className="xl:col-span-8 space-y-6 sm:space-y-8 order-2 xl:order-1">
               <TrafficLights />
               <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-sm text-slate-500 dark:text-slate-400">Loading charts…</div>}>
                 <Statistics />
               </Suspense>
             </div>
-            <div className="xl:col-span-4 space-y-8 order-1 xl:order-2">
+            <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
               <NewsTicker />
               <Filters />
               <RecentDisasters />
