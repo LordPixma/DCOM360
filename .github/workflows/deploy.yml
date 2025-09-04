@@ -25,6 +25,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             ingest-worker/package-lock.json
+      - name: Install dependencies (ingest-worker)
+        working-directory: ingest-worker
+        run: npm ci --no-audit --no-fund
       - name: Deploy ingest-worker
         working-directory: ingest-worker
         run: npx wrangler@4 deploy
@@ -43,6 +46,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             worker/package-lock.json
+      - name: Install dependencies (worker)
+        working-directory: worker
+        run: npm ci --no-audit --no-fund
       - name: Deploy worker
         working-directory: worker
         run: npx wrangler@4 deploy
