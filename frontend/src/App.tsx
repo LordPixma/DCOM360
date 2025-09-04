@@ -49,7 +49,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto px-4 h-[72px] flex items-center gap-4">
           <div className="flex items-center gap-2 mr-2">
             <img src="/logo.svg" alt="Flare360 logo" className="h-8 w-8" />
-            <span className="text-lg font-semibold">AlertScope</span>
+            <span className="text-lg font-semibold">Flare360</span>
           </div>
 
           <div className="hidden md:flex items-center flex-1 max-w-md">

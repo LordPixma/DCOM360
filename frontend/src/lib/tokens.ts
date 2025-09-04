@@ -1,4 +1,4 @@
-// Design system tokens (AlertScope spec)
+// Design system tokens (Flare360 spec)
 export const tokens = {
   colors: {
     primary: '#0066FF',
