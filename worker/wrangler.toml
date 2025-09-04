@@ -1,42 +1,50 @@
-account_id = "1e54c42267499cd9093c467c8b5517d1"
 name = "flare360-worker"
 main = "src/index.ts"
 compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+account_id = "1e54c42267499cd9093c467c8b5517d1"
 
 [vars]
 ENV = "dev"
-ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev" # allow both during migration
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
 database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
 
-# Staging environment (override bindings/vars as needed)
 [env.staging]
 [env.staging.vars]
 ENV = "staging"
-ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev" # set to both during migration
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
+
 [[env.staging.d1_databases]]
 binding = "DB"
-database_name = "dcom360-db" # replace if using a separate staging DB
-database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20" # replace with staging DB id
+database_name = "dcom360-db"
+database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+migrations_dir = "migrations"
+
 [[env.staging.kv_namespaces]]
 binding = "CACHE"
-id = "46818e79770044efa2e863ca0b0f465a" # replace with staging KV id
+id = "46818e79770044efa2e863ca0b0f465a"
 
-# Production environment
 [env.production]
 [env.production.vars]
 ENV = "prod"
 ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
+
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
 database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
+migrations_dir = "migrations"
+
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"

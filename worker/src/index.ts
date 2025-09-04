@@ -29,11 +29,26 @@ export default {
         }
       })
     }
+    // Simple KV-backed rate limit (best-effort)
+    const rlKey = `rl:${url.pathname}:${request.headers.get('cf-connecting-ip') || 'anon'}`
+    try {
+      const nowBucket = Math.floor(Date.now() / 1000 / 60) // 1-min bucket
+      const key = `${rlKey}:${nowBucket}`
+      const current = parseInt((await cache.get(env, key)) || '0', 10)
+      if (current >= 120) {
+        return json({ success: false, data: null, error: { code: 'rate_limited', message: 'Too many requests' } }, { status: 429, headers: { ...cors } })
+      }
+      await cache.put(env, key, String(current + 1), 60)
+    } catch {}
     if (url.pathname === '/api/health') {
       return json(
         { success: true, data: { status: 'ok', ts: new Date().toISOString() } },
         { headers: { ...cors } }
       )
+    }
+    if (url.pathname === '/metrics' && request.method === 'GET') {
+      const body = `# HELP app_info Basic info\n# TYPE app_info gauge\napp_info{env="${env.ENV_ORIGIN || 'unknown'}"} 1`
+      return new Response(body, { headers: { 'content-type': 'text/plain; version=0.0.4' } })
     }
     if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
       const type = url.searchParams.get('type') || undefined

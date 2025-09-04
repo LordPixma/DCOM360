@@ -1,3 +1,30 @@
+-- D1 schema aligned to worker/src/types.ts
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS disasters (
+  id TEXT PRIMARY KEY,
+  disaster_type TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('RED','ORANGE','GREEN')),
+  title TEXT NOT NULL,
+  country TEXT,
+  coordinates_lat REAL,
+  coordinates_lng REAL,
+  event_timestamp TEXT NOT NULL,
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_disasters_event_ts ON disasters(event_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_disasters_type ON disasters(disaster_type);
+CREATE INDEX IF NOT EXISTS idx_disasters_country ON disasters(country);
+CREATE INDEX IF NOT EXISTS idx_disasters_severity ON disasters(severity);
+CREATE INDEX IF NOT EXISTS idx_disasters_active ON disasters(is_active);
+
+-- Optional lookup for countries
+CREATE TABLE IF NOT EXISTS countries (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
 -- D1 initial schema: disasters
 CREATE TABLE IF NOT EXISTS disasters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
