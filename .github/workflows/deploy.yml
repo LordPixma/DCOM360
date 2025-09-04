@@ -60,7 +60,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Deploy worker
         working-directory: worker
-  run: npx wrangler@4 deploy --env production
+        run: npx wrangler@4 deploy --env production
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
