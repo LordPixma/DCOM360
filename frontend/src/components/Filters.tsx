@@ -29,12 +29,12 @@ export function Filters() {
   ], [countries])
 
   return (
-    <div className="bg-white border rounded-lg p-3">
+    <div className="bg-white border rounded-lg shadow-sm p-4">
       <div className="flex flex-col md:flex-row gap-3 items-center">
         <select
           value={filters.country || ''}
           onChange={(e) => setFilters({ ...filters, country: e.target.value || undefined })}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded-full px-3 py-2 text-sm hover:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/40"
           aria-label="Filter by country"
         >
           {countryOptions.map((o) => (
@@ -45,7 +45,7 @@ export function Filters() {
         <select
           value={filters.severity || ''}
           onChange={(e) => setFilters({ ...filters, severity: (e.target.value || undefined) as any })}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded-full px-3 py-2 text-sm hover:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/40"
           aria-label="Filter by severity"
         >
           {SEVERITIES.map((o) => (
@@ -56,7 +56,7 @@ export function Filters() {
         <select
           value={filters.type || ''}
           onChange={(e) => setFilters({ ...filters, type: e.target.value || undefined })}
-          className="border rounded px-2 py-1 text-sm"
+          className="border rounded-full px-3 py-2 text-sm hover:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/40"
           aria-label="Filter by type"
         >
           {TYPES.map((o) => (
@@ -64,12 +64,15 @@ export function Filters() {
           ))}
         </select>
 
-        <button
-          onClick={() => clearFilters()}
-          className="ml-auto text-sm text-blue-600 hover:underline"
-        >
-          Clear filters
-        </button>
+        <div className="ml-auto flex items-center gap-3">
+          <div className="text-xs text-gray-600">Results update live</div>
+          <button
+            onClick={() => clearFilters()}
+            className="text-sm text-brand-primary hover:opacity-80 font-medium"
+          >
+            Clear filters
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -37,11 +37,16 @@ export function DisasterMap() {
     let added = 0
     data?.forEach((d: Disaster) => {
       if (typeof d.longitude !== 'number' || typeof d.latitude !== 'number') return
-      const el = document.createElement('div')
-      el.className = 'rounded-full border-2 bg-white'
-      el.style.width = '12px'
-      el.style.height = '12px'
-      el.style.borderColor = d.severity === 'red' ? '#dc2626' : d.severity === 'yellow' ? '#eab308' : '#22c55e'
+  const el = document.createElement('div')
+  const size = d.severity === 'red' ? 40 : d.severity === 'yellow' ? 32 : 24
+      const color = d.severity === 'red' ? '#FF4444' : d.severity === 'yellow' ? '#FF8800' : '#00CC66'
+  const pulse = d.severity !== 'green' ? ' animate-pulseSoft' : ''
+  el.className = 'rounded-full shadow-md' + pulse
+      el.style.width = `${size}px`
+      el.style.height = `${size}px`
+      el.style.background = color
+      el.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'
+      el.style.opacity = '0.9'
 
       const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([d.longitude!, d.latitude!])
@@ -63,12 +68,20 @@ export function DisasterMap() {
   }, [data])
 
   return (
-    <div className="bg-white border rounded-lg h-[420px]">
-      <div className="px-3 py-2 border-b flex items-center justify-between">
-        <div className="text-sm text-gray-600">Interactive Map</div>
+    <div className="relative bg-white border rounded-lg shadow-sm">
+      <div className="px-4 py-3 border-b flex items-center justify-between">
+        <div className="text-sm text-gray-700 font-medium">Global Map</div>
         <div className="text-xs text-gray-500">{isLoading ? 'Loading…' : `${data?.length || 0} active events`}</div>
       </div>
-      <div ref={containerRef} className="h-[372px]" />
+      <div ref={containerRef} className="h-[420px]" />
+      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur rounded-md border px-3 py-2 text-xs text-gray-700 shadow-sm">
+        <div className="font-medium mb-1">Legend</div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-status-green" /> Low</div>
+          <div className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-full bg-status-orange" /> Medium</div>
+          <div className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-status-red" /> High</div>
+        </div>
+      </div>
     </div>
   )
 }

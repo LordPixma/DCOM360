@@ -24,7 +24,7 @@ export function Statistics() {
       {
         label: 'Events by Type',
         data: counts,
-        backgroundColor: 'rgba(59, 130, 246, 0.6)'
+  backgroundColor: '#0066FF'
       }
     ]
   }
@@ -36,19 +36,15 @@ export function Statistics() {
         label: 'Share',
         data: counts,
         backgroundColor: [
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(234, 179, 8, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(147, 51, 234, 0.7)'
+          '#0066FF', '#00D4AA', '#FF8800', '#8B5CF6', '#F59E0B'
         ]
       }
     ]
   }
 
   return (
-    <section className="bg-white border rounded-lg p-4">
-      <h2 className="font-semibold mb-4">Statistics</h2>
+    <section className="bg-white border rounded-lg shadow-sm p-4">
+      <h2 className="font-semibold mb-4">Analytics</h2>
       {isLoading ? (
         <div className="text-sm text-gray-500">Loading charts…</div>
       ) : (

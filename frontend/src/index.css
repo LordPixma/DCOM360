@@ -1,5 +1,37 @@
+/* Fonts must come first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
+
+/* App background */
+body {
+	@apply bg-gray-bg text-charcoal font-sans antialiased;
+}
+
+/* Accessible focus ring */
+:where(button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+	outline: 2px solid theme('colors.brand.primary');
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
+/* Glass header helper */
+.glass {
+	background: rgba(255,255,255,0.95);
+	-webkit-backdrop-filter: saturate(180%) blur(10px);
+	backdrop-filter: saturate(180%) blur(10px);
+}
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation-duration: 0.001ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.001ms !important;
+		scroll-behavior: auto !important;
+	}
+}

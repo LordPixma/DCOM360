@@ -28,8 +28,7 @@ binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
 
 [env.production]
-[env.production.vars]
-INGEST_TOKEN = "" # use secret in prod
+# Use Cloudflare Secret for INGEST_TOKEN in production (do not set as plain var)
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
