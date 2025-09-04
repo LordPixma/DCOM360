@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+const WORKER_BASE = process.env.VITE_API_BASE || 'https://flare360-worker.samuel-1e5.workers.dev'
 
 test('dashboard renders core sections', async ({ page }) => {
   await page.goto('/')
@@ -17,6 +18,14 @@ test('statistics show at least one data point', async ({ page }) => {
   await page.waitForSelector('canvas', { timeout: 5000 }).catch(() => {})
   const canvases = await page.locator('canvas').count()
   expect(canvases).toBeGreaterThanOrEqual(0)
+})
+
+test('api health endpoint responds ok', async ({ request }) => {
+  const res = await request.get(`${WORKER_BASE}/api/health`)
+  expect(res.ok()).toBeTruthy()
+  const body = await res.json()
+  expect(body?.success).toBeTruthy()
+  expect(body?.data?.status).toMatch(/ok/i)
 })
 
 test('map renders container, marker optional', async ({ page }) => {

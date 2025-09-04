@@ -10,10 +10,10 @@
     "test:int": "tsx --tsconfig tsconfig.tests.json test/integration.test.ts"
   },
   "devDependencies": {
-  "wrangler": "^3.77.0",
-  "typescript": "^5.5.4",
-  "@cloudflare/workers-types": "^4.20240821.0",
-  "tsx": "^4.19.1",
-  "@types/node": "^22.7.4"
+    "@cloudflare/workers-types": "^4.20240821.0",
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.5.4",
+    "wrangler": "^4.33.2"
   }
 }
