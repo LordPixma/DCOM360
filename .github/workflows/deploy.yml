@@ -36,7 +36,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
         run: |
           # Store the ingest token as a Cloudflare Worker secret (production env)
-          npx wrangler@4 secret put INGEST_TOKEN --env production --text "$INGEST_TOKEN"
+          set -euo pipefail
+          : "${INGEST_TOKEN:?Missing INGEST_TOKEN}"
+          printf "%s" "$INGEST_TOKEN" | npx wrangler@4 secret put INGEST_TOKEN --env production
       - name: Deploy ingest-worker
         working-directory: ingest-worker
         run: npx wrangler@4 deploy --env production
