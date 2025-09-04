@@ -1,0 +1,5 @@
+# robots.txt for Flare360
+User-agent: *
+Allow: /
+
+Sitemap: https://flare360.org/sitemap.xml

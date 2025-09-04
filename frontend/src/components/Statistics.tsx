@@ -117,11 +117,11 @@ export function Statistics() {
       </div>
       
       <div className="p-6">
-        {isLoading ? (
+    {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <div className="animate-spin h-8 w-8 border-4 border-slate-300 border-t-purple-600 rounded-full mx-auto mb-3"></div>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Loading analytics...</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">Loading charts...</p>
             </div>
           </div>
         ) : !data?.totals.length ? (
