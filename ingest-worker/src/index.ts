@@ -1,15 +1,21 @@
-import { parseEmail, type ParsedEmail } from './parser'
+import { parseEmail, parseEmailMulti, type ParsedEmail } from './parser'
 
 interface Env {
   DB: D1Database
   CACHE?: KVNamespace
   INGEST_TOKEN?: string
   INGEST_SECRET?: string
+  ALLOW_FROM?: string
 }
 
-// Minimal EmailMessage type for Email Workers to satisfy TypeScript in absence of upstream types
+// Minimal ForwardableEmailMessage type for Email Workers
 type EmailMessage = {
-  raw: () => Promise<ArrayBuffer>
+  raw: ReadableStream
+  headers: Headers
+  from?: string
+  to?: string
+  setReject?: (reason: string) => void
+  forward?: (rcptTo: string, headers?: Headers) => Promise<void>
 }
 
 function json(data: unknown, init: ResponseInit = {}) {
@@ -100,21 +106,38 @@ export default {
   // Cloudflare Email Workers handler: runs when emails are routed to this worker
   async email(message: EmailMessage, env: Env, ctx: ExecutionContext) {
     try {
-      const raw = await message.raw()
+      // Optional allowlist for sender addresses (comma-separated)
+      const allow = (env.ALLOW_FROM || '')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+      if (allow.length && message.from && !allow.includes(message.from.toLowerCase())) {
+        message.setReject?.('Address not allowed')
+        return
+      }
+
       // Decode RFC822 and split headers/body
-  const text = new TextDecoder('utf-8').decode(raw)
+      const rawBuf = await new Response(message.raw).arrayBuffer()
+      const text = new TextDecoder('utf-8').decode(rawBuf)
       const parts = text.split(/\r?\n\r?\n/)
       const headers = parts[0] || ''
       const body = parts.slice(1).join('\n\n') || text
-      const subject = (/^Subject:\s*(.+)$/gim.exec(headers)?.[1] || '').trim()
-      const parsed = parseEmail(subject, body)
+      const hSubject = (/^Subject:\s*(.+)$/gim.exec(headers)?.[1] || '').trim()
+      const subject = message.headers?.get('Subject') || message.headers?.get('subject') || hSubject
+      const parsedMany = parseEmailMulti(subject, body)
       const t0 = Date.now()
-      const { newDisasters, updatedDisasters } = await processParsedEmail(parsed, env)
+      let newDisasters = 0
+      let updatedDisasters = 0
+      for (const p of parsedMany) {
+        const r = await processParsedEmail(p, env)
+        newDisasters += r.newDisasters
+        updatedDisasters += r.updatedDisasters
+      }
 
       // Log processing
       await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
                             VALUES (?, ?, ?, ?, 'OK', ?, ?)`)
-        .bind(new Date().toISOString().slice(0, 10), 1, newDisasters, updatedDisasters, Date.now() - t0, raw.byteLength)
+  .bind(new Date().toISOString().slice(0, 10), parsedMany.length, newDisasters, updatedDisasters, Date.now() - t0, rawBuf.byteLength)
         .run()
     } catch (err) {
       // Minimal failure logging path
