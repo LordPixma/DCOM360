@@ -1,4 +1,4 @@
-import { parseEmail } from './parser'
+import { parseEmail, type ParsedEmail } from './parser'
 
 interface Env {
   DB: D1Database
@@ -7,8 +7,51 @@ interface Env {
   INGEST_SECRET?: string
 }
 
+// Minimal EmailMessage type for Email Workers to satisfy TypeScript in absence of upstream types
+type EmailMessage = {
+  raw: () => Promise<ArrayBuffer>
+}
+
 function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' }, ...init })
+}
+
+async function processParsedEmail(parsed: ParsedEmail, env: Env) {
+  const existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: number; severity: string }>()
+
+  let newDisasters = 0
+  let updatedDisasters = 0
+  if (!existing) {
+    await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
+      .run()
+    newDisasters = 1
+  } else {
+    await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
+      .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
+      .run()
+    if (existing.severity !== parsed.severity) {
+      await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
+                            VALUES (?, ?, ?, ?)`)
+        .bind(existing.id, existing.severity, parsed.severity, 'email_update')
+        .run()
+    }
+    updatedDisasters = 1
+  }
+
+  // Invalidate cache keys
+  if (env.CACHE) {
+    const keys = [
+      'disasters:summary',
+      'disasters:current:all:all:all:50:0',
+      'disasters:history:7',
+      'countries:list',
+    ]
+    await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+  }
+
+  return { newDisasters, updatedDisasters }
 }
 
 export default {
@@ -39,31 +82,8 @@ export default {
       }
 
       const start = Date.now()
-      const parsed = parseEmail(subject, body)
-
-      // Upsert into disasters by external_id
-      const existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: number; severity: string }>()
-
-      let newDisasters = 0
-      let updatedDisasters = 0
-      if (!existing) {
-        await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
-          .run()
-        newDisasters = 1
-      } else {
-        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
-          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
-          .run()
-        if (existing.severity !== parsed.severity) {
-          await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
-                                VALUES (?, ?, ?, ?)`)
-            .bind(existing.id, existing.severity, parsed.severity, 'email_update')
-            .run()
-        }
-        updatedDisasters = 1
-      }
+  const parsed = parseEmail(subject, body)
+  const { newDisasters, updatedDisasters } = await processParsedEmail(parsed, env)
 
       // Log processing
       await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
@@ -71,20 +91,38 @@ export default {
         .bind(new Date().toISOString().slice(0, 10), 1, newDisasters, updatedDisasters, Date.now() - start, (subject.length + body.length))
         .run()
 
-      // Invalidate cache keys
-      if (env.CACHE) {
-        const keys = [
-          'disasters:summary',
-          'disasters:current:all:all:all:50:0',
-          'disasters:history:7',
-          'countries:list',
-        ]
-        await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
-      }
-
       return json({ success: true, data: { processed: 1, newDisasters, updatedDisasters } })
     }
 
     return new Response('Not found', { status: 404 })
+  },
+
+  // Cloudflare Email Workers handler: runs when emails are routed to this worker
+  async email(message: EmailMessage, env: Env, ctx: ExecutionContext) {
+    try {
+      const raw = await message.raw()
+      // Decode RFC822 and split headers/body
+  const text = new TextDecoder('utf-8').decode(raw)
+      const parts = text.split(/\r?\n\r?\n/)
+      const headers = parts[0] || ''
+      const body = parts.slice(1).join('\n\n') || text
+      const subject = (/^Subject:\s*(.+)$/gim.exec(headers)?.[1] || '').trim()
+      const parsed = parseEmail(subject, body)
+      const t0 = Date.now()
+      const { newDisasters, updatedDisasters } = await processParsedEmail(parsed, env)
+
+      // Log processing
+      await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
+                            VALUES (?, ?, ?, ?, 'OK', ?, ?)`)
+        .bind(new Date().toISOString().slice(0, 10), 1, newDisasters, updatedDisasters, Date.now() - t0, raw.byteLength)
+        .run()
+    } catch (err) {
+      // Minimal failure logging path
+      try {
+        await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
+                              VALUES (?, 0, 0, 0, 'ERROR', 0, 0)`).bind(new Date().toISOString().slice(0, 10)).run()
+      } catch {}
+      console.error('Email processing failed:', err)
+    }
   }
 }
