@@ -28,9 +28,18 @@ jobs:
       - name: Install dependencies (ingest-worker)
         working-directory: ingest-worker
         run: npm ci --no-audit --no-fund
+      - name: Configure ingest secret (production)
+        working-directory: ingest-worker
+        env:
+          INGEST_TOKEN: ${{ env.INGEST_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # Store the ingest token as a Cloudflare Worker secret (production env)
+          npx wrangler@4 secret put INGEST_TOKEN --env production --text "$INGEST_TOKEN"
       - name: Deploy ingest-worker
         working-directory: ingest-worker
-        run: npx wrangler@4 deploy
+        run: npx wrangler@4 deploy --env production
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
@@ -51,7 +60,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Deploy worker
         working-directory: worker
-        run: npx wrangler@4 deploy
+  run: npx wrangler@4 deploy --env production
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
@@ -94,11 +103,16 @@ jobs:
         id: ingest
         run: |
           set -euo pipefail
+          set -x
           TITLE="CI Smoke $(date +%s)"
           DATA=$(jq -nc --arg title "$TITLE" '{subject:"[GDACS] Test", body:("Type: Earthquake\nSeverity: RED\nCountry: NG\nLat: 9.08\nLng: 8.68\nDate: 2025-09-03T10:00:00Z\nTitle: " + $title + "\nDescription: CI smoke test event.") }')
           : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
-          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/email" -H "authorization: Bearer ${INGEST_TOKEN}" -H 'content-type: application/json' --data "$DATA")
-          test "$code" = "200"
+          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/email" -H "authorization: Bearer ${INGEST_TOKEN}" -H 'content-type: application/json' --data "$DATA" || true)
+          echo "HTTP_CODE=$code"
+          if [ "$code" != "200" ]; then
+            echo "Response body:" && cat resp.json || true
+            exit 1
+          fi
           grep -q '"success":\s*true' resp.json
           echo "title=$TITLE" >> $GITHUB_OUTPUT
       - name: Assert event visible in current
