@@ -95,61 +95,32 @@ export function DisasterMap() {
   }, [data])
 
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
-      <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
-              <Map className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900 dark:text-white">Global Map</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                {isLoading ? 'Loading events...' : `${data?.length || 0} active events worldwide`}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
-              <Layers className="h-4 w-4" />
-            </button>
-            <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors">
-              <ZoomIn className="h-4 w-4" />
-            </button>
+    <div className="relative w-full border-b border-slate-200 dark:border-slate-700">
+      <div ref={containerRef} className="h-[56vh] min-h-[420px] w-full" />
+      {!MAPBOX_TOKEN && (
+        <div className="absolute inset-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+          <div className="text-center">
+            <Map className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+            <p className="text-slate-600 dark:text-slate-400 font-medium">Map unavailable</p>
+            <p className="text-sm text-slate-500 dark:text-slate-500">Mapbox token required</p>
           </div>
         </div>
-      </div>
-      
-      <div className="relative">
-        <div ref={containerRef} className="h-[500px]" />
-        {!MAPBOX_TOKEN && (
-          <div className="absolute inset-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-            <div className="text-center">
-              <Map className="h-12 w-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-600 dark:text-slate-400 font-medium">Map unavailable</p>
-              <p className="text-sm text-slate-500 dark:text-slate-500">Mapbox token required</p>
-            </div>
-          </div>
-        )}
-        
-        <div className="absolute bottom-4 left-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-600 p-4 shadow-lg">
-          <div className="font-semibold text-slate-900 dark:text-white text-sm mb-3 flex items-center gap-2">
+      )}
+      {/* Overlay header */}
+      <div className="pointer-events-none absolute top-4 left-6 right-6 flex items-start justify-between">
+        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 shadow-lg pointer-events-auto">
+          <h3 className="font-bold text-slate-900 dark:text-white">Global Map</h3>
+          <p className="text-xs text-slate-600 dark:text-slate-400">{isLoading ? 'Loading events...' : `${data?.length || 0} active events worldwide`}</p>
+        </div>
+        <div className="bg-white/80 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl p-3 shadow-lg pointer-events-auto">
+          <div className="font-semibold text-slate-900 dark:text-white text-xs mb-2 flex items-center gap-2">
             <Layers className="h-4 w-4" />
             Legend
           </div>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 text-xs">
-              <div className="h-3 w-3 rounded-full bg-green-500 shadow-sm"></div>
-              <span className="text-slate-700 dark:text-slate-300">Monitoring</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <div className="h-4 w-4 rounded-full bg-orange-500 shadow-sm"></div>
-              <span className="text-slate-700 dark:text-slate-300">Warning</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <div className="h-5 w-5 rounded-full bg-red-500 shadow-sm"></div>
-              <span className="text-slate-700 dark:text-slate-300">Critical</span>
-            </div>
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-green-500"></span> Monitoring</div>
+            <div className="flex items-center gap-2"><span className="h-4 w-4 rounded-full bg-orange-500"></span> Warning</div>
+            <div className="flex items-center gap-2"><span className="h-5 w-5 rounded-full bg-red-500"></span> Critical</div>
           </div>
         </div>
       </div>

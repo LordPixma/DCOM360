@@ -1,14 +1,15 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
-import { TrafficLights } from './components/TrafficLights'
-import { RecentDisasters } from './components/RecentDisasters'
-import { Filters } from './components/Filters'
+import { TrafficLights } from '@/components/TrafficLights'
+import { RecentDisasters } from '@/components/RecentDisasters'
+import { Filters } from '@/components/Filters'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Wifi, WifiOff, Moon, Sun } from 'lucide-react'
+import { NewsTicker } from '@/components/NewsTicker'
 
 // Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
-const DisasterMap = lazy(() => import('./components/DisasterMap').then(m => ({ default: m.DisasterMap })))
-const Statistics = lazy(() => import('./components/Statistics').then(m => ({ default: m.Statistics })))
+const DisasterMap = lazy(() => import('@/components/DisasterMap').then(m => ({ default: m.DisasterMap })))
+const Statistics = lazy(() => import('@/components/Statistics').then(m => ({ default: m.Statistics })))
 
 export default function App() {
   const { preferences } = useAppStore()
@@ -59,10 +60,10 @@ export default function App() {
   }, [dark])
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+  <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 bg-brand-primary text-white px-3 py-2 rounded-md shadow-md z-50">Skip to main content</a>
       <header className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center shadow-md">
@@ -113,22 +114,30 @@ export default function App() {
           </div>
         </div>
       </header>
-      <main id="main" className="flex-1 max-w-7xl mx-auto w-full px-6 py-8 space-y-8">
-        <TrafficLights />
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-          <div className="xl:col-span-3 space-y-6">
-            <Filters />
-            <RecentDisasters />
+      <main id="main" className="flex-1 w-full">
+        {/* Hero map */}
+        <section className="w-full">
+          <Suspense fallback={<div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-[56vh] min-h-[420px] flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">Loading map…</div>}>
+            <DisasterMap />
+          </Suspense>
+        </section>
+
+        {/* Content below hero */}
+        <section className="w-full px-6 py-8 space-y-8">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div className="xl:col-span-8 space-y-8 order-2 xl:order-1">
+              <TrafficLights />
+              <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-sm text-slate-500 dark:text-slate-400">Loading charts…</div>}>
+                <Statistics />
+              </Suspense>
+            </div>
+            <div className="xl:col-span-4 space-y-8 order-1 xl:order-2">
+              <NewsTicker />
+              <Filters />
+              <RecentDisasters />
+            </div>
           </div>
-          <div className="xl:col-span-9 space-y-6">
-            <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl h-[500px] flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">Loading map…</div>}>
-              <DisasterMap />
-            </Suspense>
-            <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-sm text-slate-500 dark:text-slate-400">Loading charts…</div>}>
-              <Statistics />
-            </Suspense>
-          </div>
-        </div>
+        </section>
       </main>
     </div>
   )
