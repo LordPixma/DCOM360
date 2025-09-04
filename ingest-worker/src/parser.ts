@@ -67,20 +67,21 @@ export function parseEmailMulti(subject: string, body: string): ParsedEmail[] {
     const dateStr = m[5]
     const timeStr = m[6]
     const iso = toIsoFromEuropean(dateStr, timeStr)
-    const country = sanitizeCountry(countryRaw)
+    const countryName = sanitizeCountry(countryRaw)
+    const countryIso = countryName ? resolveCountryIso2(countryName) : null
 
-    const title = `${capitalize(sev.toLowerCase())} earthquake M${mag} ${country ? 'in ' + country : ''}`.trim()
-    const external_id = `gdacs:earthquake:${country || 'unknown'}:${iso}:${mag}:${depthKm}`
+    const title = `${capitalize(sev.toLowerCase())} earthquake M${mag} ${countryName ? 'in ' + countryName : ''}`.trim()
+    const external_id = `gdacs:earthquake:${countryIso || countryName || 'unknown'}:${iso}:${mag}:${depthKm}`
 
     results.push({
       external_id,
       disaster_type: 'earthquake',
       severity: sev,
       title,
-      country: country || undefined,
+      country: countryIso || undefined,
       event_timestamp: iso,
       description: `Magnitude ${mag} at depth ${depthKm}km`,
-      metadata: { magnitude: parseFloat(mag), depth_km: parseFloat(depthKm) }
+      metadata: { magnitude: parseFloat(mag), depth_km: parseFloat(depthKm), original_country_name: countryName || undefined }
     })
   }
 
@@ -96,7 +97,13 @@ export function parseEmailMulti(subject: string, body: string): ParsedEmail[] {
     const endIso = range ? toIsoFromEuropean(range[2], '00:00') : new Date().toISOString()
     const countriesMatch = /The cyclone affects these countries:\s*([^\.\n]+)/i.exec(tail)
     const firstCountry = countriesMatch ? countriesMatch[1].split(',')[0].trim() : undefined
-  const country = firstCountry ? sanitizeCountry(firstCountry.replace(/\(.*?\)/, '').trim()) : undefined
+    const countryName = firstCountry ? sanitizeCountry(firstCountry.replace(/\(.*?\)/, '').trim()) : undefined
+    const countryIso = countryName ? resolveCountryIso2(countryName) : undefined
+
+    // Try to extract category and max wind speed (km/h)
+    const catMatch = /Category\s*([1-5])/i.exec(tail)
+    const windMatches = Array.from(tail.matchAll(/(\d{2,3})\s*(?:km\/?h|kph)/gi))
+    const maxWind = windMatches.length ? Math.max(...windMatches.map((w) => parseInt(w[1], 10))) : undefined
 
     const title = `${capitalize(sev.toLowerCase())} tropical cyclone ${name}`
     const external_id = `gdacs:cyclone:${name}:${endIso}`
@@ -105,10 +112,10 @@ export function parseEmailMulti(subject: string, body: string): ParsedEmail[] {
       disaster_type: 'tropical_cyclone',
       severity: sev,
       title,
-  country: country || undefined,
+      country: countryIso || undefined,
       event_timestamp: endIso,
       description: `GDACS tropical cyclone ${name}`,
-      metadata: { name }
+      metadata: { name, category: catMatch ? parseInt(catMatch[1], 10) : undefined, max_wind_kmh: maxWind, original_country_name: countryName }
     })
   }
 
@@ -132,4 +139,190 @@ function sanitizeCountry(raw: string): string | null {
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// Basic country name to ISO2 normalization. Fallback returns undefined.
+function resolveCountryIso2(name: string): string | undefined {
+  const n = name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const map: Record<string, string> = {
+    'russian federation': 'RU',
+    russia: 'RU',
+    'united states': 'US',
+    'united states of america': 'US',
+    usa: 'US',
+    america: 'US',
+    canada: 'CA',
+    mexico: 'MX',
+    brazil: 'BR',
+    chile: 'CL',
+    peru: 'PE',
+    argentina: 'AR',
+    colombia: 'CO',
+    ecuador: 'EC',
+    bolivia: 'BO',
+    'dominican republic': 'DO',
+    haiti: 'HT',
+    jamaica: 'JM',
+    cuba: 'CU',
+    'puerto rico': 'PR',
+    iceland: 'IS',
+    greenland: 'GL',
+    ireland: 'IE',
+    'united kingdom': 'GB',
+    uk: 'GB',
+    england: 'GB',
+    scotland: 'GB',
+    wales: 'GB',
+    france: 'FR',
+    spain: 'ES',
+    portugal: 'PT',
+    germany: 'DE',
+    italy: 'IT',
+    switzerland: 'CH',
+    austria: 'AT',
+    netherlands: 'NL',
+    belgium: 'BE',
+    luxembourg: 'LU',
+    norway: 'NO',
+    sweden: 'SE',
+    finland: 'FI',
+    denmark: 'DK',
+    estonia: 'EE',
+    latvia: 'LV',
+    lithuania: 'LT',
+    poland: 'PL',
+    czechia: 'CZ',
+    'czech republic': 'CZ',
+    slovakia: 'SK',
+    hungary: 'HU',
+    greece: 'GR',
+    turkey: 'TR',
+    cyprus: 'CY',
+    romania: 'RO',
+    bulgaria: 'BG',
+    serbia: 'RS',
+    croatia: 'HR',
+    slovenia: 'SI',
+    albania: 'AL',
+    macedonia: 'MK',
+    kosovo: 'XK',
+    montenegro: 'ME',
+    bosnia: 'BA',
+    'bosnia and herzegovina': 'BA',
+    ukraine: 'UA',
+    belarus: 'BY',
+    moldova: 'MD',
+    rwanda: 'RW',
+    uganda: 'UG',
+    kenya: 'KE',
+    tanzania: 'TZ',
+    somalia: 'SO',
+    ethiopia: 'ET',
+    sudan: 'SD',
+    'south sudan': 'SS',
+    egypt: 'EG',
+    libya: 'LY',
+    tunisia: 'TN',
+    algeria: 'DZ',
+    morocco: 'MA',
+    'western sahara': 'EH',
+    nigeria: 'NG',
+    niger: 'NE',
+    ghana: 'GH',
+    benin: 'BJ',
+    togo: 'TG',
+    'cote d ivoire': 'CI',
+    'cote divoire': 'CI',
+    "cote d'ivoire": 'CI',
+    'ivory coast': 'CI',
+    senegal: 'SN',
+    mali: 'ML',
+    'burkina faso': 'BF',
+    guinea: 'GN',
+    liberia: 'LR',
+    sierra: 'SL',
+    'sierra leone': 'SL',
+    cameroon: 'CM',
+    gabon: 'GA',
+    congo: 'CG',
+    'republic of the congo': 'CG',
+    'democratic republic of the congo': 'CD',
+    drc: 'CD',
+    angola: 'AO',
+    zambia: 'ZM',
+    zimbabwe: 'ZW',
+    botswana: 'BW',
+    namibia: 'NA',
+    mozambique: 'MZ',
+    madagascar: 'MG',
+    'south africa': 'ZA',
+    lesotho: 'LS',
+    swaziland: 'SZ',
+    eswatini: 'SZ',
+    china: 'CN',
+    mongolia: 'MN',
+    japan: 'JP',
+    korea: 'KR',
+    'south korea': 'KR',
+    'north korea': 'KP',
+    taiwan: 'TW',
+    india: 'IN',
+    pakistan: 'PK',
+    bangladesh: 'BD',
+    nepal: 'NP',
+    bhutan: 'BT',
+    sri: 'LK',
+    'sri lanka': 'LK',
+    maldives: 'MV',
+    myanmar: 'MM',
+    'myanmar burma': 'MM',
+    burma: 'MM',
+    thailand: 'TH',
+    laos: 'LA',
+    'lao pdr': 'LA',
+    cambodia: 'KH',
+    vietnam: 'VN',
+    'viet nam': 'VN',
+    malaysia: 'MY',
+    singapore: 'SG',
+    philippines: 'PH',
+    indonesia: 'ID',
+    brunei: 'BN',
+    timor: 'TL',
+    'timor leste': 'TL',
+    australia: 'AU',
+    'papua new guinea': 'PG',
+    new: 'NZ',
+    'new zealand': 'NZ',
+    fiji: 'FJ',
+    vanuatu: 'VU',
+    tonga: 'TO',
+    samoa: 'WS',
+    'solomon islands': 'SB',
+    'marshall islands': 'MH',
+    kiribati: 'KI',
+    micronesia: 'FM',
+    palau: 'PW',
+    philippinessea: 'PH',
+    iran: 'IR',
+    iraq: 'IQ',
+    syria: 'SY',
+    lebanon: 'LB',
+    jordan: 'JO',
+    israel: 'IL',
+    palestine: 'PS',
+    'saudi arabia': 'SA',
+    yemen: 'YE',
+    oman: 'OM',
+    uae: 'AE',
+    'united arab emirates': 'AE',
+    qatar: 'QA',
+    bahrain: 'BH',
+    kuwait: 'KW'
+  }
+  return map[n]
 }

@@ -89,16 +89,22 @@ export default {
       }
 
       const start = Date.now()
-  const parsed = parseEmail(subject, body)
-  const { newDisasters, updatedDisasters } = await processParsedEmail(parsed, env)
+      const parsedMany = parseEmailMulti(subject, body)
+      let newDisasters = 0
+      let updatedDisasters = 0
+      for (const p of parsedMany) {
+        const r = await processParsedEmail(p, env)
+        newDisasters += r.newDisasters
+        updatedDisasters += r.updatedDisasters
+      }
 
       // Log processing
       await env.DB.prepare(`INSERT INTO processing_logs (email_date, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes)
                             VALUES (?, ?, ?, ?, 'OK', ?, ?)`)
-        .bind(new Date().toISOString().slice(0, 10), 1, newDisasters, updatedDisasters, Date.now() - start, (subject.length + body.length))
+  .bind(new Date().toISOString().slice(0, 10), parsedMany.length, newDisasters, updatedDisasters, Date.now() - start, (subject.length + body.length))
         .run()
 
-      return json({ success: true, data: { processed: 1, newDisasters, updatedDisasters } })
+  return json({ success: true, data: { processed: parsedMany.length, newDisasters, updatedDisasters } })
     }
 
     return new Response('Not found', { status: 404 })
