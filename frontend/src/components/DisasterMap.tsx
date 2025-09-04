@@ -4,7 +4,10 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useAppStore } from '@/store/appStore'
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string
+const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined) || ''
+if (MAPBOX_TOKEN) {
+  mapboxgl.accessToken = MAPBOX_TOKEN
+}
 
 export function DisasterMap() {
   const filters = useAppStore((s) => s.filters)
@@ -15,7 +18,7 @@ export function DisasterMap() {
 
   // Initialize map once
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return
+    if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return
     mapRef.current = new mapboxgl.Map({
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/streets-v12',
