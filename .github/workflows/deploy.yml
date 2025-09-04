@@ -45,7 +45,7 @@ jobs:
           # Deploying first removes any legacy plain var binding so the secret name won't conflict.
           set -euo pipefail
           : "${INGEST_TOKEN:?Missing INGEST_TOKEN}"
-          printf "%s" "$INGEST_TOKEN" | npx wrangler@4 secret put INGEST_TOKEN --env production
+          printf "%s" "$INGEST_TOKEN" | npx wrangler@4 secret put INGEST_SECRET --env production
 
   deploy-api:
     name: Deploy API Worker

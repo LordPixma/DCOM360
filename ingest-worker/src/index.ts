@@ -4,6 +4,7 @@ interface Env {
   DB: D1Database
   CACHE?: KVNamespace
   INGEST_TOKEN?: string
+  INGEST_SECRET?: string
 }
 
 function json(data: unknown, init: ResponseInit = {}) {
@@ -20,7 +21,8 @@ export default {
     if (req.method === 'POST' && url.pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
-      if (!env.INGEST_TOKEN || token !== env.INGEST_TOKEN) {
+      const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+      if (!expected || token !== expected) {
         return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
       }
       let payload: any
