@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Wifi, WifiOff, Moon, Sun } from 'lucide-react'
 import { NewsTicker } from '@/components/NewsTicker'
 import { ApiStatus } from '@/components/ApiStatus'
+import { AdminDashboard } from '@/components/AdminDashboard'
 
 // Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
 const DisasterMap = lazy(() => import('@/components/DisasterMap').then(m => ({ default: m.DisasterMap })))
@@ -60,6 +61,21 @@ export default function App() {
     } catch {}
   }, [dark])
 
+  const isAdmin = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('admin') === '1'
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20">
+          <div className="px-6 h-16 flex items-center justify-between">
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Flare360 Admin</h1>
+          </div>
+        </header>
+        <main>
+          <AdminDashboard />
+        </main>
+      </div>
+    )
+  }
   return (
   <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 bg-brand-primary text-white px-3 py-2 rounded-md shadow-md z-50">Skip to main content</a>
