@@ -73,30 +73,35 @@ export default {
       return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST,OPTIONS', 'access-control-allow-headers': 'content-type,authorization' } })
     }
     // Manual trigger to pull GDACS RSS now
-  if (req.method === 'POST' && pathname === '/ingest/gdacs') {
-      const auth = req.headers.get('authorization') || ''
-      const token = auth.replace(/^Bearer\s+/i, '')
-      const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
-      if (!expected || token !== expected) {
-        return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+    if (req.method === 'POST' && pathname === '/ingest/gdacs') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        const rssUrl = env.GDACS_RSS_URL || 'https://www.gdacs.org/xml/rss.xml'
+        const res = await fetch(rssUrl, { cf: { cacheTtl: 60, cacheEverything: true } as any })
+        if (!res.ok) return json({ success: false, error: { code: 'UPSTREAM', message: `GDACS fetch ${res.status}` } }, { status: 502 })
+        const xml = await res.text()
+        const items = parseGdacsFeed(xml)
+        let newDisasters = 0
+        let updatedDisasters = 0
+        for (const p of items) {
+          const r = await processParsedEmail(p as any, env)
+          newDisasters += r.newDisasters
+          updatedDisasters += r.updatedDisasters
+        }
+        if (env.CACHE) {
+          const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
+          await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+        }
+        return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
+      } catch (err: any) {
+        const message = err?.message || String(err)
+        return json({ success: false, error: { code: 'INGEST_ERROR', message } }, { status: 500 })
       }
-      const rssUrl = env.GDACS_RSS_URL || 'https://www.gdacs.org/xml/rss.xml'
-      const res = await fetch(rssUrl, { cf: { cacheTtl: 60, cacheEverything: true } as any })
-      if (!res.ok) return json({ success: false, error: { code: 'UPSTREAM', message: `GDACS fetch ${res.status}` } }, { status: 502 })
-      const xml = await res.text()
-      const items = parseGdacsFeed(xml)
-      let newDisasters = 0
-      let updatedDisasters = 0
-      for (const p of items) {
-        const r = await processParsedEmail(p as any, env)
-        newDisasters += r.newDisasters
-        updatedDisasters += r.updatedDisasters
-      }
-      if (env.CACHE) {
-        const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
-        await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
-      }
-      return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
     }
 
   if (req.method === 'POST' && pathname === '/ingest/email') {
