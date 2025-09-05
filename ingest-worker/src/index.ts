@@ -25,68 +25,72 @@ function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' }, ...init })
 }
 
-async function processParsedEmail(parsed: ParsedEmail, env: Env) {
-  // Try the modern schema first (with external_id); fallback to legacy schema (id TEXT PK)
-  let existing: { id: any; severity: string } | null = null
-  let useLegacy = false
+async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newDisasters: number; updatedDisasters: number; error?: string }>{
   try {
-    existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
-  } catch (err: any) {
-    if (String(err?.message || err).toLowerCase().includes('no such column: external_id')) {
-      useLegacy = true
-      existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
-    } else {
-      throw err
+    // Try the modern schema first (with external_id); fallback to legacy schema (id TEXT PK)
+    let existing: { id: any; severity: string } | null = null
+    let useLegacy = false
+    try {
+      existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
+    } catch (err: any) {
+      if (String(err?.message || err).toLowerCase().includes('no such column: external_id')) {
+        useLegacy = true
+        existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
+      } else {
+        throw err
+      }
     }
-  }
 
-  let newDisasters = 0
-  let updatedDisasters = 0
-  if (!existing) {
-    if (useLegacy) {
-      // Minimal columns on legacy schema
-      await env.DB.prepare(`INSERT INTO disasters (id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, is_active)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).
-        bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).
-        run()
+    let newDisasters = 0
+    let updatedDisasters = 0
+    if (!existing) {
+      if (useLegacy) {
+        // Minimal columns on legacy schema
+        await env.DB.prepare(`INSERT INTO disasters (id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, is_active)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).
+          bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).
+          run()
+      } else {
+        await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
+          .run()
+      }
+      newDisasters = 1
     } else {
-      await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
-        .run()
+      if (useLegacy) {
+        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`)
+          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id)
+          .run()
+      } else {
+        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
+          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
+          .run()
+      }
+      if (existing.severity !== parsed.severity) {
+        await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
+                              VALUES (?, ?, ?, ?)`).
+          bind(existing.id, existing.severity, parsed.severity, 'email_update').
+          run()
+      }
+      updatedDisasters = 1
     }
-    newDisasters = 1
-  } else {
-    if (useLegacy) {
-      await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`)
-        .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id)
-        .run()
-    } else {
-      await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
-        .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
-        .run()
-    }
-    if (existing.severity !== parsed.severity) {
-      await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
-                            VALUES (?, ?, ?, ?)`)
-        .bind(existing.id, existing.severity, parsed.severity, 'email_update')
-        .run()
-    }
-    updatedDisasters = 1
-  }
 
-  // Invalidate cache keys
-  if (env.CACHE) {
-    const keys = [
-      'disasters:summary',
-      'disasters:current:all:all:all:50:0',
-      'disasters:history:7',
-      'countries:list',
-    ]
-    await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
-  }
+    // Invalidate cache keys
+    if (env.CACHE) {
+      const keys = [
+        'disasters:summary',
+        'disasters:current:all:all:all:50:0',
+        'disasters:history:7',
+        'countries:list',
+      ]
+      await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+    }
 
-  return { newDisasters, updatedDisasters }
+    return { newDisasters, updatedDisasters }
+  } catch (e: any) {
+    return { newDisasters: 0, updatedDisasters: 0, error: e?.message || String(e) }
+  }
 }
 
 export default {
@@ -111,17 +115,22 @@ export default {
         const res = await fetch(rssUrl, { cf: { cacheTtl: 60, cacheEverything: true } as any })
         if (!res.ok) return json({ success: false, error: { code: 'UPSTREAM', message: `GDACS fetch ${res.status}` } }, { status: 502 })
         const xml = await res.text()
-        const items = parseGdacsFeed(xml)
+        const items = parseGdacsFeed(xml).slice(0, 10)
         let newDisasters = 0
         let updatedDisasters = 0
+        const errors: Array<{ id: string; error: string }> = []
         for (const p of items) {
           const r = await processParsedEmail(p as any, env)
           newDisasters += r.newDisasters
           updatedDisasters += r.updatedDisasters
+          if (r.error) errors.push({ id: (p as any).external_id, error: r.error })
         }
         if (env.CACHE) {
           const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
           await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+        }
+        if (errors.length) {
+          return json({ success: false, error: { code: 'PARTIAL_FAIL', message: 'Some items failed', details: errors }, data: { processed: items.length, newDisasters, updatedDisasters } }, { status: 207 })
         }
         return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
       } catch (err: any) {
