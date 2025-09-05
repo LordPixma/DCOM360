@@ -81,8 +81,14 @@ jobs:
         id: prep
         run: |
           API_URL="${WORKER_URL:-https://flare360-worker.samuel-1e5.workers.dev}"
-          # Use the production environment domain for the ingest worker by default
-          ING_URL="${INGEST_URL:-https://flare360-ingest-production.samuel-1e5.workers.dev}"
+          # Prefer the production environment domain for the ingest worker.
+          # If INGEST_URL is set to the non-prod workers.dev subdomain, rewrite to -production.
+          RAW_ING_URL="${INGEST_URL:-https://flare360-ingest-production.samuel-1e5.workers.dev}"
+          if echo "$RAW_ING_URL" | grep -q '^https://flare360-ingest\.samuel-1e5\.workers\.dev$'; then
+            ING_URL="https://flare360-ingest-production.samuel-1e5.workers.dev"
+          else
+            ING_URL="$RAW_ING_URL"
+          fi
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "ing_url=$ING_URL" >> $GITHUB_OUTPUT
       - name: Check /api/health
