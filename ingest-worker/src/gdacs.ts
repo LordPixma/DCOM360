@@ -3,7 +3,7 @@ import { XMLParser } from 'fast-xml-parser'
 export type ParsedGdacsItem = {
   external_id: string
   disaster_type: string
-  severity: 'green' | 'yellow' | 'red'
+  severity: 'GREEN' | 'ORANGE' | 'RED'
   title: string
   country?: string
   coordinates_lat?: number
@@ -12,11 +12,11 @@ export type ParsedGdacsItem = {
   description?: string
 }
 
-function mapAlertLevel(level?: string): 'green' | 'yellow' | 'red' {
+function mapAlertLevel(level?: string): 'GREEN' | 'ORANGE' | 'RED' {
   const v = (level || '').toLowerCase()
-  if (v === 'red') return 'red'
-  if (v === 'orange') return 'yellow'
-  return 'green'
+  if (v === 'red') return 'RED'
+  if (v === 'orange') return 'ORANGE'
+  return 'GREEN'
 }
 
 function inferType(title: string): string {
