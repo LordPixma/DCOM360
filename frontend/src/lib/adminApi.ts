@@ -1,4 +1,4 @@
-import axios, { type AxiosRequestConfig } from 'axios'
+import axios, { type InternalAxiosRequestConfig } from 'axios'
 import { api } from './api'
 
 // Reuse baseURL from existing api instance; add Authorization header dynamically
@@ -7,17 +7,17 @@ export const adminApi = axios.create({
   headers: { 'content-type': 'application/json' }
 })
 
-adminApi.interceptors.request.use((config: AxiosRequestConfig) => {
+adminApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   try {
     const token = sessionStorage.getItem('ADMIN_TOKEN') || ''
     const email = sessionStorage.getItem('ADMIN_EMAIL') || ''
     if (token) {
-      config.headers = config.headers || {}
-      ;(config.headers as any)['Authorization'] = `Bearer ${token}`
+  const headers = (config.headers ||= {} as any)
+  headers['Authorization'] = `Bearer ${token}`
     }
     if (email) {
-      config.headers = config.headers || {}
-      ;(config.headers as any)['x-admin-email'] = email
+  const headers = (config.headers ||= {} as any)
+  headers['x-admin-email'] = email
     }
   } catch {}
   return config
