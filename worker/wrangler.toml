@@ -14,7 +14,6 @@ binding = "DB"
 database_name = "dcom360-db"
 database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
 migrations_dir = "migrations"
-local_database_path = ".wrangler/d1/local.sqlite"
 
 [[kv_namespaces]]
 binding = "CACHE"

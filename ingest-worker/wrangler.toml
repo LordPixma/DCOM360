@@ -8,7 +8,6 @@ account_id = "1e54c42267499cd9093c467c8b5517d1"
 binding = "DB"
 database_name = "dcom360-db"
 database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
-local_database_path = ".wrangler/d1/local.sqlite"
 migrations_dir = "../worker/migrations"
 
 [[kv_namespaces]]
@@ -34,6 +33,7 @@ id = "46818e79770044efa2e863ca0b0f465a"
 # Use Cloudflare Secret for INGEST_SECRET in production (do not set as plain var)
 [env.production.vars]
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
+INGEST_TOKEN = ""
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
