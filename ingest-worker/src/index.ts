@@ -65,12 +65,15 @@ async function processParsedEmail(parsed: ParsedEmail, env: Env) {
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    const url = new URL(req.url)
-    if (req.method === 'OPTIONS') {
+  const url = new URL(req.url)
+  // Normalize path to avoid trailing-slash mismatches
+  const pathname = (url.pathname.replace(/\/+$/g, '') || '/')
+
+  if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST,OPTIONS', 'access-control-allow-headers': 'content-type,authorization' } })
     }
     // Manual trigger to pull GDACS RSS now
-    if (req.method === 'POST' && url.pathname === '/ingest/gdacs') {
+  if (req.method === 'POST' && pathname === '/ingest/gdacs') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
       const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
@@ -96,7 +99,7 @@ export default {
       return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
     }
 
-    if (req.method === 'POST' && url.pathname === '/ingest/email') {
+  if (req.method === 'POST' && pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
       const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
@@ -135,7 +138,8 @@ export default {
   return json({ success: true, data: { processed: parsedMany.length, newDisasters, updatedDisasters } })
     }
 
-    return new Response('Not found', { status: 404 })
+  // Slightly more diagnostic 404 to help smoke-test debugging
+  return json({ success: false, error: { code: 'NOT_FOUND', message: 'Not found', method: req.method, path: pathname } }, { status: 404 })
   },
 
   // Cloudflare Email Workers handler: runs when emails are routed to this worker
