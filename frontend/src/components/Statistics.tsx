@@ -18,6 +18,9 @@ export function Statistics() {
   const { data, isLoading } = useSummary()
   const labels = data?.totals.map(t => t.type) ?? []
   const counts = data?.totals.map(t => t.count) ?? []
+  const affected = data?.total_affected_population ?? 0
+  const recent24 = data?.recent_24h ?? 0
+  const econ = data?.economic_impact_estimate_usd ?? 0
 
   const barData = {
     labels,
@@ -117,6 +120,22 @@ export function Statistics() {
       </div>
       
       <div className="p-6">
+        {!isLoading && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+              <div className="text-xs text-slate-500 dark:text-slate-400">People Affected</div>
+              <div className="text-xl font-semibold text-slate-900 dark:text-white">{affected.toLocaleString()}</div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+              <div className="text-xs text-slate-500 dark:text-slate-400">Last 24h</div>
+              <div className="text-xl font-semibold text-slate-900 dark:text-white">{recent24.toLocaleString()}</div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+              <div className="text-xs text-slate-500 dark:text-slate-400">Economic Impact</div>
+              <div className="text-xl font-semibold text-slate-900 dark:text-white">${econ.toLocaleString()}</div>
+            </div>
+          </div>
+        )}
     {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">

@@ -181,22 +181,24 @@ export default {
       const type = url.searchParams.get('type') || undefined
       const severity = url.searchParams.get('severity') || undefined
       const country = url.searchParams.get('country') || undefined
+      const q = url.searchParams.get('q') || undefined
       const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200)
       const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0)
 
       try {
         if (!env.DB) throw new Error('DB not bound; using mock')
-        const cacheKey = `disasters:current:${type||'all'}:${severity||'all'}:${country||'all'}:${limit}:${offset}`
+  const cacheKey = `disasters:current:${type||'all'}:${severity||'all'}:${country||'all'}:${q||'none'}:${limit}:${offset}`
         const cached = await cache.get(env, cacheKey)
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-        let sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
+  let sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
                    FROM disasters WHERE is_active = 1`
         const params: any[] = []
         if (type) { sql += ` AND disaster_type = ?`; params.push(type) }
         if (severity) { sql += ` AND severity = ?`; params.push(severity.toUpperCase()) }
         if (country) { sql += ` AND country = ?`; params.push(country) }
+  if (q) { sql += ` AND (title LIKE ? OR country LIKE ?)`; const pat = `%${q}%`; params.push(pat, pat) }
         sql += ` ORDER BY event_timestamp DESC LIMIT ? OFFSET ?`
         params.push(limit, offset)
 
@@ -212,7 +214,7 @@ export default {
           title: r.title,
           occurred_at: r.event_timestamp,
         }))
-    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
+  const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
   return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
@@ -226,7 +228,7 @@ export default {
   return json(body, { headers: { ...cors } })
       }
     }
-    if (url.pathname === '/api/disasters/summary' && request.method === 'GET') {
+  if (url.pathname === '/api/disasters/summary' && request.method === 'GET') {
       try {
         if (!env.DB) throw new Error('DB not bound; using mock')
         const cacheKey = 'disasters:summary'
@@ -234,10 +236,15 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-        const typeSql = `SELECT disaster_type as type, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY disaster_type`
-        const rows = await env.DB.prepare(typeSql).all<{ type: string; count: number }>()
-        const totals = rows.results
-    const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals } }
+    const typeSql = `SELECT disaster_type as type, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY disaster_type`
+    const rows = await env.DB.prepare(typeSql).all<{ type: string; count: number }>()
+    const totals = rows.results
+    const sevRows = await env.DB.prepare(`SELECT severity, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY severity`).all<{ severity: string; count: number }>()
+    const affectedRow = await env.DB.prepare(`SELECT COALESCE(SUM(affected_population), 0) as total_affected FROM disasters WHERE is_active = 1`).first<{ total_affected: number }>()
+    const recent24 = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM disasters WHERE is_active = 1 AND event_timestamp >= datetime('now', '-1 day')`).first<{ cnt: number }>()
+    const totalAffected = affectedRow?.total_affected ?? 0
+    const economicEstimate = Math.round(totalAffected * 150) // simple placeholder estimate in USD
+  const body: APIResponse<{ totals: { type: string; count: number }[]; severity_breakdown: { severity: string; count: number }[]; total_affected_population: number; recent_24h: number; economic_impact_estimate_usd: number }> = { success: true, data: { totals, severity_breakdown: sevRows.results, total_affected_population: totalAffected, recent_24h: recent24?.cnt ?? 0, economic_impact_estimate_usd: economicEstimate } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
   return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
@@ -245,7 +252,7 @@ export default {
         const counts: Record<string, number> = {}
         for (const d of mockDisasters) counts[d.type] = (counts[d.type] || 0) + 1
         const totals = Object.entries(counts).map(([type, count]) => ({ type, count }))
-    const body: APIResponse<{ totals: { type: string; count: number }[] }> = { success: true, data: { totals }, meta: { fallback: true } }
+  const body: APIResponse<{ totals: { type: string; count: number }[]; severity_breakdown?: any; total_affected_population?: number; recent_24h?: number; economic_impact_estimate_usd?: number }> = { success: true, data: { totals }, meta: { fallback: true } }
   return json(body, { headers: { ...cors } })
       }
     }

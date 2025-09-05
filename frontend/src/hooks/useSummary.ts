@@ -8,6 +8,10 @@ export type SummaryItem = {
 
 export type SummaryResponse = {
   totals: SummaryItem[]
+  severity_breakdown?: { severity: string; count: number }[]
+  total_affected_population?: number
+  recent_24h?: number
+  economic_impact_estimate_usd?: number
 }
 
 export function useSummary() {

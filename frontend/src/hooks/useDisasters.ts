@@ -16,6 +16,7 @@ export interface DisastersQuery {
   country?: string
   severity?: string
   type?: string
+  q?: string
   limit?: number
   offset?: number
   sort?: string
@@ -26,6 +27,7 @@ export function useDisasters(opts: DisastersQuery = {}) {
   if (opts.country) params.set('country', opts.country)
   if (opts.severity) params.set('severity', opts.severity)
   if (opts.type) params.set('type', opts.type)
+  if (opts.q) params.set('q', opts.q)
   if (opts.limit) params.set('limit', String(opts.limit))
   if (typeof opts.offset === 'number') params.set('offset', String(opts.offset))
   if (opts.sort) params.set('sort', opts.sort)

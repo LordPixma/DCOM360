@@ -1,13 +1,14 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { TrafficLights } from '@/components/TrafficLights'
 import { RecentDisasters } from '@/components/RecentDisasters'
 import { Filters } from '@/components/Filters'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
-import { Search, Bell, Wifi, WifiOff, Moon, Sun } from 'lucide-react'
+import { Search, Bell, Moon, Sun, Share2 } from 'lucide-react'
 import { NewsTicker } from '@/components/NewsTicker'
 import { ApiStatus } from '@/components/ApiStatus'
 import { Link } from 'react-router-dom'
+import { useDisasters } from '@/hooks/useDisasters'
 
 // Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
 const DisasterMap = lazy(() => import('@/components/DisasterMap').then(m => ({ default: m.DisasterMap })))
@@ -18,6 +19,14 @@ export default function App() {
   const qc = useQueryClient()
   const [online, setOnline] = useState(true)
   const [dark, setDark] = useState(false)
+  const [query, setQuery] = useState('')
+  const [showSuggest, setShowSuggest] = useState(false)
+  const suggestRef = useRef<HTMLDivElement | null>(null)
+  const { data: suggestions } = useDisasters({ limit: 6, ...(query ? { } : {}), ...(query ? {} : {}) })
+  const filteredSuggest = useMemo(() => {
+    if (!query) return []
+    return (suggestions || []).filter(d => d.title.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+  }, [suggestions, query])
 
   // Initialize theme from localStorage or system preference
   useEffect(() => {
@@ -75,14 +84,38 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center flex-1 max-w-lg mx-8">
+          <div className="hidden md:flex items-center flex-1 max-w-lg mx-8 relative" ref={suggestRef}>
             <div className="w-full relative">
               <input
                 aria-label="Global search"
                 placeholder="Search disasters, locations, or events..."
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setShowSuggest(true) }}
+                onFocus={() => setShowSuggest(true)}
+                onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 pl-11 pr-4 py-2.5 text-sm placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all duration-200"
               />
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              {showSuggest && query && filteredSuggest.length > 0 && (
+                <div className="absolute z-30 mt-2 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden">
+                  <ul className="max-h-72 overflow-auto">
+                    {filteredSuggest.map(s => (
+                      <li key={s.id} className="px-3 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer" onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                        // Navigate via URL hash to shareable link
+                        const url = new URL(window.location.href)
+                        url.searchParams.set('disasterId', s.id)
+                        window.history.replaceState({}, '', url.toString())
+                        setQuery(''); setShowSuggest(false)
+                        // Smooth scroll to list card section
+                        document.getElementById('recent')?.scrollIntoView({ behavior: 'smooth' })
+                      }}>
+                        <div className="font-medium text-slate-900 dark:text-white line-clamp-1">{s.title}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">{s.type}{s.country ? ` • ${s.country}` : ''}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 
@@ -115,6 +148,21 @@ export default function App() {
               title="Toggle theme"
             >
               {dark ? <Sun className="h-5 w-5 text-slate-600 dark:text-slate-400"/> : <Moon className="h-5 w-5 text-slate-600 dark:text-slate-400"/>}
+            </button>
+            <button
+              onClick={() => {
+                const shareUrl = window.location.href
+                if (navigator.share) {
+                  navigator.share({ title: 'Flare360', url: shareUrl }).catch(() => {})
+                } else {
+                  navigator.clipboard?.writeText(shareUrl)
+                }
+              }}
+              className="p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200"
+              aria-label="Share current view"
+              title="Share current view"
+            >
+              <Share2 className="h-5 w-5 text-slate-600 dark:text-slate-400"/>
             </button>
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shadow-md select-none" aria-label="User Menu">AS</div>
           </div>

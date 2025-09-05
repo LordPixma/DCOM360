@@ -2,10 +2,29 @@ import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useAppStore } from '@/store/appStore'
 import { format } from 'date-fns'
 import { Clock, MapPin, AlertTriangle } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 export function RecentDisasters() {
   const filters = useAppStore((s) => s.filters)
-  const { data, isLoading } = useDisasters({ limit: 10, ...filters })
+  const [offset, setOffset] = useState(0)
+  const [items, setItems] = useState<Disaster[]>([])
+  const loaderRef = useRef<HTMLDivElement | null>(null)
+  const { data, isLoading } = useDisasters({ limit: 20, offset, ...filters })
+  const targetId = useMemo(() => new URLSearchParams(window.location.search).get('disasterId'), [])
+
+  useEffect(() => { setItems([]); setOffset(0) }, [filters.country, filters.severity, filters.type])
+  useEffect(() => { if (data && data.length) setItems(prev => [...prev, ...data]) }, [data])
+  useEffect(() => {
+    const el = loaderRef.current
+    if (!el) return
+    const ob = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !isLoading && (data?.length || 0) >= 20) {
+        setOffset(o => o + 20)
+      }
+    }, { rootMargin: '200px' })
+    ob.observe(el)
+    return () => ob.disconnect()
+  }, [isLoading, data])
   
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
@@ -21,13 +40,13 @@ export function RecentDisasters() {
         </div>
       </div>
       
-      <div className="max-h-[600px] overflow-auto">
+  <div id="recent" className="max-h-[600px] overflow-auto">
         {isLoading ? (
           <div className="p-6 text-center">
             <div className="animate-spin h-8 w-8 border-4 border-slate-300 border-t-blue-600 rounded-full mx-auto mb-3"></div>
             <p className="text-sm text-slate-500 dark:text-slate-400">Loading events...</p>
           </div>
-        ) : data?.length === 0 ? (
+  ) : items.length === 0 ? (
           <div className="p-6 text-center">
             <AlertTriangle className="h-12 w-12 text-slate-400 mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">No events found</p>
@@ -35,8 +54,8 @@ export function RecentDisasters() {
           </div>
         ) : (
           <ul className="divide-y divide-slate-200 dark:divide-slate-700">
-            {data?.map((d: Disaster) => (
-              <li key={d.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150">
+            {items.map((d: Disaster) => (
+              <li key={d.id} className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150 ${targetId === d.id ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}>
                 <div className="flex items-start gap-4">
                   <div className={`flex-shrink-0 h-3 w-3 rounded-full mt-1.5 ${
                     d.severity === 'red' 
@@ -70,6 +89,7 @@ export function RecentDisasters() {
                 </div>
               </li>
             ))}
+            <div ref={loaderRef} className="p-4 text-center text-xs text-slate-500">{isLoading ? 'Loading…' : ' '}</div>
           </ul>
         )}
       </div>
