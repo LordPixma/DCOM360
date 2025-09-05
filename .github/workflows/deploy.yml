@@ -100,30 +100,19 @@ jobs:
       - name: OPTIONS on ingest endpoint
         run: |
           set -euo pipefail
-          code=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "${{ steps.prep.outputs.ing_url }}/ingest/email")
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "${{ steps.prep.outputs.ing_url }}/ingest/gdacs")
           test "$code" = "204"
-      - name: Ingest a sample event
-        id: ingest
+      - name: Trigger GDACS ingest
         run: |
           set -euo pipefail
-          set -x
-          TITLE="CI Smoke $(date +%s)"
-          DATA=$(jq -nc --arg title "$TITLE" '{subject:"[GDACS] Test", body:("Type: Earthquake\nSeverity: RED\nCountry: NG\nLat: 9.08\nLng: 8.68\nDate: 2025-09-03T10:00:00Z\nTitle: " + $title + "\nDescription: CI smoke test event.") }')
           : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
-          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/email" -H "authorization: Bearer ${INGEST_TOKEN}" -H 'content-type: application/json' --data "$DATA" || true)
+          code=$(curl -s -o resp.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/gdacs" -H "authorization: Bearer ${INGEST_TOKEN}" || true)
           echo "HTTP_CODE=$code"
           if [ "$code" != "200" ]; then
             echo "Response body:" && cat resp.json || true
             exit 1
           fi
           grep -q '"success":\s*true' resp.json
-          echo "title=$TITLE" >> $GITHUB_OUTPUT
-      - name: Assert event visible in current
-        run: |
-          set -euo pipefail
-          sleep 2
-          curl -s "${{ steps.prep.outputs.api_url }}/api/disasters/current?limit=50" -o current.json
-          grep -q "${{ steps.ingest.outputs.title }}" current.json
 
   pages-deploy:
     name: Deploy Pages (production)
