@@ -20,12 +20,12 @@ export default {
   const cors = buildCorsHeaders(env, request)
     const url = new URL(request.url)
     if (request.method === 'OPTIONS') {
-    return new Response(null, {
+      return new Response(null, {
         status: 204,
         headers: {
-      ...cors,
-          'access-control-allow-methods': 'GET,OPTIONS',
-          'access-control-allow-headers': 'content-type,authorization'
+          ...cors,
+          'access-control-allow-methods': 'GET,POST,OPTIONS',
+          'access-control-allow-headers': 'content-type,authorization,x-admin-email'
         }
       })
     }
@@ -59,6 +59,15 @@ export default {
     if (isAdminRequest) {
       const unauth = requireAdmin()
       if (unauth) return unauth
+      // role helper: derive role from X-Admin-Email header if present
+      async function getAdminRole(): Promise<string | null> {
+        const email = (request.headers.get('x-admin-email') || '').toLowerCase().trim()
+        if (!email) return null
+        try {
+          const row = await env.DB.prepare('SELECT role FROM admin_users WHERE email = ?').bind(email).first<{ role: string }>()
+          return row?.role || null
+        } catch { return null }
+      }
       // Router for admin endpoints
       if (url.pathname === '/api/admin/health') {
         return json({ success: true, data: { status: 'ok', ts: new Date().toISOString() } }, { headers: { ...cors } })
@@ -83,6 +92,32 @@ export default {
           return json({ success: false, data: null, error: { code: 'report_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
         }
       }
+      if (url.pathname === '/api/admin/reports/logs' && request.method === 'GET') {
+        const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10), 1000)
+        try {
+          const rows = await env.DB.prepare('SELECT id, email_date, processing_timestamp, disasters_processed, new_disasters, updated_disasters, status, processing_time_ms, email_size_bytes FROM processing_logs ORDER BY processing_timestamp DESC LIMIT ?').bind(limit).all()
+          return json({ success: true, data: rows.results }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'report_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
+      if (url.pathname === '/api/admin/reports/countries' && request.method === 'GET') {
+        try {
+          const rows = await env.DB.prepare('SELECT country, COUNT(*) as count FROM disasters WHERE country IS NOT NULL AND country <> "" GROUP BY country ORDER BY count DESC').all<{ country: string; count: number }>()
+          return json({ success: true, data: rows.results }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'report_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
+      if (url.pathname === '/api/admin/reports/timeseries' && request.method === 'GET') {
+        const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '30', 10), 1), 365)
+        try {
+          const rows = await env.DB.prepare("SELECT DATE(event_timestamp) as day, COUNT(*) as count FROM disasters WHERE event_timestamp >= datetime('now', ?) GROUP BY DATE(event_timestamp) ORDER BY day ASC").bind(`-${days} days`).all<{ day: string; count: number }>()
+          return json({ success: true, data: rows.results }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'report_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
       if (url.pathname === '/api/admin/disasters/purge' && request.method === 'POST') {
         // Danger: full purge; support safe modes via query params
         const mode = url.searchParams.get('mode') || 'demo'
@@ -94,7 +129,12 @@ export default {
               env.DB.prepare("DELETE FROM disasters WHERE title LIKE 'CI Smoke%'")
             ])
           } else if (mode === 'all') {
-            // Full wipe
+            // Full wipe requires superadmin role and explicit confirmation
+            const role = await getAdminRole()
+            const confirm = (url.searchParams.get('confirm') || '').toUpperCase()
+            if (role !== 'superadmin' || confirm !== 'PURGE-ALL') {
+              return json({ success: false, data: null, error: { code: 'forbidden', message: 'superadmin and confirm=PURGE-ALL required' } }, { status: 403, headers: { ...cors } })
+            }
             await env.DB.batch([
               env.DB.prepare('DELETE FROM disaster_history'),
               env.DB.prepare('DELETE FROM disasters')
