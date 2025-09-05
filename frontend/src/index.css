@@ -75,9 +75,10 @@ body {
 	animation: marquee linear infinite;
 }
 
+/* With duplicated tracks, translate full width for a seamless loop */
 @keyframes marquee {
 	0% { transform: translateX(0); }
-	100% { transform: translateX(-50%); }
+	100% { transform: translateX(-100%); }
 }
 
 /* Reduce motion */

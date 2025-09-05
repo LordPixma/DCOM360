@@ -35,21 +35,37 @@ export function NewsTicker() {
           {paused ? <><Play className="h-3.5 w-3.5"/> Resume</> : <><Pause className="h-3.5 w-3.5"/> Pause</>}
         </button>
       </div>
-      <div ref={containerRef} className="relative h-10 overflow-hidden">
+      <div ref={containerRef} className="relative h-10 sm:h-11 overflow-hidden">
+        {/* Marquee wrapper centered vertically */}
         <div
-          className={`absolute whitespace-nowrap will-change-transform ${paused ? '' : 'animate-marquee'}`}
+          className={`absolute left-0 top-1/2 -translate-y-1/2 will-change-transform ${paused ? '' : 'animate-marquee'}`}
           style={{ animationDuration: `${Math.max(20, items.length * 2)}s` }}
         >
-          {items.length === 0 ? (
-            <span className="inline-block px-4 text-sm text-slate-500 dark:text-slate-400">No recent updates</span>
-          ) : (
-            items.map((d, i) => (
-              <span key={d.id ?? i} className="inline-flex items-center gap-2 px-4 text-sm">
-                <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : d.severity === 'yellow' ? 'bg-orange-500' : 'bg-green-500'}`}></span>
-                <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
-                <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
-              </span>
-            ))
+          {/* Track A */}
+          <div className="inline-flex items-center whitespace-nowrap pr-8">
+            {items.length === 0 ? (
+              <span className="inline-block px-4 text-sm text-slate-500 dark:text-slate-400">No recent updates</span>
+            ) : (
+              items.map((d, i) => (
+                <span key={d.id ?? i} className="inline-flex items-center gap-2 px-4 text-sm">
+                  <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : d.severity === 'yellow' ? 'bg-orange-500' : 'bg-green-500'}`}></span>
+                  <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
+                  <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
+                </span>
+              ))
+            )}
+          </div>
+          {/* Track B (duplicate for seamless loop) */}
+          {items.length > 0 && (
+            <div className="inline-flex items-center whitespace-nowrap pr-8" aria-hidden="true">
+              {items.map((d, i) => (
+                <span key={`dup-${d.id ?? i}`} className="inline-flex items-center gap-2 px-4 text-sm">
+                  <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : d.severity === 'yellow' ? 'bg-orange-500' : 'bg-green-500'}`}></span>
+                  <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
+                  <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
+                </span>
+              ))}
+            </div>
           )}
         </div>
       </div>
