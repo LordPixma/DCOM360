@@ -27,7 +27,7 @@ jobs:
             ingest-worker/package-lock.json
       - name: Install dependencies (ingest-worker)
         working-directory: ingest-worker
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
       - name: Deploy ingest-worker
         working-directory: ingest-worker
         run: npx wrangler@4 deploy --env production

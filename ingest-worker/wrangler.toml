@@ -15,6 +15,7 @@ id = "46818e79770044efa2e863ca0b0f465a"
 
 [vars]
 INGEST_TOKEN = "dev-token-123" # set via `wrangler secret put INGEST_TOKEN` in production
+GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 
 [env.staging]
 [env.staging.vars]
@@ -29,6 +30,8 @@ id = "46818e79770044efa2e863ca0b0f465a"
 
 [env.production]
 # Use Cloudflare Secret for INGEST_SECRET in production (do not set as plain var)
+[env.production.vars]
+GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
@@ -36,3 +39,6 @@ database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
+
+[triggers]
+crons = ["*/15 * * * *"]
