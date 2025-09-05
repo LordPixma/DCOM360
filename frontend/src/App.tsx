@@ -7,7 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Wifi, WifiOff, Moon, Sun } from 'lucide-react'
 import { NewsTicker } from '@/components/NewsTicker'
 import { ApiStatus } from '@/components/ApiStatus'
-import { AdminDashboard } from '@/components/AdminDashboard'
+import { Link } from 'react-router-dom'
 
 // Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
 const DisasterMap = lazy(() => import('@/components/DisasterMap').then(m => ({ default: m.DisasterMap })))
@@ -61,21 +61,6 @@ export default function App() {
     } catch {}
   }, [dark])
 
-  const isAdmin = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('admin') === '1'
-  if (isAdmin) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20">
-          <div className="px-6 h-16 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Flare360 Admin</h1>
-          </div>
-        </header>
-        <main>
-          <AdminDashboard />
-        </main>
-      </div>
-    )
-  }
   return (
   <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 bg-brand-primary text-white px-3 py-2 rounded-md shadow-md z-50">Skip to main content</a>
@@ -118,6 +103,7 @@ export default function App() {
             <div className="hidden md:block">
               <ApiStatus />
             </div>
+            <Link to="/admin" className="hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-200">Admin</Link>
             <button className="relative p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200" aria-label="Notifications">
               <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />
               <span className="absolute -top-1 -right-1 inline-block h-3 w-3 bg-orange-500 rounded-full ring-2 ring-white dark:ring-slate-800" aria-hidden />
