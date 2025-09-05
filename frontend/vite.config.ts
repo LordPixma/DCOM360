@@ -24,8 +24,8 @@ export default defineConfig({
           query: ['@tanstack/react-query'],
           charts: ['chart.js', 'react-chartjs-2'],
           lucide: ['lucide-react'],
-          // Heavy mapbox chunk
-          mapbox: ['mapbox-gl']
+          // Heavy map library chunk
+          maplibre: ['maplibre-gl']
         }
       }
     }

@@ -10,7 +10,7 @@ import { ApiStatus } from '@/components/ApiStatus'
 import { Link } from 'react-router-dom'
 import { useDisasters } from '@/hooks/useDisasters'
 
-// Lazy-load heavy components (mapbox-gl, chart.js) to shrink initial bundle
+// Lazy-load heavy components (maplibre-gl, chart.js) to shrink initial bundle
 const DisasterMap = lazy(() => import('@/components/DisasterMap').then(m => ({ default: m.DisasterMap })))
 const Statistics = lazy(() => import('@/components/Statistics').then(m => ({ default: m.Statistics })))
 

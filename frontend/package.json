@@ -7,22 +7,22 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-  "typecheck": "tsc --noEmit -p tsconfig.json",
-  "test:e2e": "playwright test",
-  "test:e2e:install": "playwright install --with-deps"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.56.2",
-  "react-router-dom": "^6.26.1",
     "axios": "^1.7.2",
     "chart.js": "^4.5.0",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.3.24",
     "lucide-react": "^0.452.0",
-    "mapbox-gl": "^3.7.0",
+    "maplibre-gl": "^5.7.1",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.1",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

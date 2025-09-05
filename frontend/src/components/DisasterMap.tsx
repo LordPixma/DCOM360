@@ -1,36 +1,37 @@
 import { useEffect, useRef } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useAppStore } from '@/store/appStore'
 import { Map, Layers, ZoomIn } from 'lucide-react'
 
-const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined) || ''
-if (MAPBOX_TOKEN) {
-  mapboxgl.accessToken = MAPBOX_TOKEN
-}
+// MapTiler API key and style for MapLibre
+const MAPTILER_KEY = (import.meta.env.VITE_MAPTILER_KEY as string | undefined) || ''
+const MAP_STYLE = MAPTILER_KEY
+  ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`
+  : ''
 
 export function DisasterMap() {
   const filters = useAppStore((s) => s.filters)
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
-  const markersRef = useRef<mapboxgl.Marker[]>([])
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const markersRef = useRef<maplibregl.Marker[]>([])
   const { data, isLoading } = useDisasters({ limit: 200, ...filters })
 
   // Initialize map once
   useEffect(() => {
-    if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return
-    mapRef.current = new mapboxgl.Map({
+    if (!containerRef.current || mapRef.current || !MAP_STYLE) return
+    mapRef.current = new maplibregl.Map({
       container: containerRef.current,
-      style: 'mapbox://styles/mapbox/light-v11',
+      style: MAP_STYLE,
       center: [0, 20],
       zoom: 1.3,
       attributionControl: false
     })
     
     // Add custom controls
-    mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
-    mapRef.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
+    mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')
+    mapRef.current.addControl(new maplibregl.FullscreenControl(), 'top-right')
   }, [])
 
   // Render markers when data changes
@@ -42,7 +43,7 @@ export function DisasterMap() {
     markersRef.current.forEach(m => m.remove())
     markersRef.current = []
 
-    const bounds = new mapboxgl.LngLatBounds()
+    const bounds = new maplibregl.LngLatBounds()
     let added = 0
     data?.forEach((d: Disaster) => {
       if (typeof d.longitude !== 'number' || typeof d.latitude !== 'number') return
@@ -58,10 +59,10 @@ export function DisasterMap() {
       el.style.background = `radial-gradient(circle, ${color}, ${color}dd)`
       el.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)'
       
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: el })
         .setLngLat([d.longitude!, d.latitude!])
         .setPopup(
-          new mapboxgl.Popup({ 
+          new maplibregl.Popup({ 
             offset: 15,
             className: 'custom-popup',
             closeButton: true,
@@ -92,19 +93,19 @@ export function DisasterMap() {
     if (added) {
       const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
       const padding = vw < 640 ? 24 : vw < 1024 ? 40 : 60
-      map.fitBounds(bounds, { padding, maxZoom: 6 })
+  map.fitBounds(bounds, { padding, maxZoom: 6 })
     }
   }, [data])
 
   return (
     <div className="relative w-full border-b border-slate-200 dark:border-slate-700">
       <div ref={containerRef} className="h-[48vh] min-h-[320px] sm:h-[56vh] sm:min-h-[420px] w-full" />
-      {!MAPBOX_TOKEN && (
+  {!MAP_STYLE && (
         <div className="absolute inset-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
           <div className="text-center">
             <Map className="h-12 w-12 text-slate-400 mx-auto mb-3" />
             <p className="text-slate-600 dark:text-slate-400 font-medium">Map unavailable</p>
-            <p className="text-sm text-slate-500 dark:text-slate-500">Mapbox token required</p>
+    <p className="text-sm text-slate-500 dark:text-slate-500">MapTiler key required</p>
           </div>
         </div>
       )}
