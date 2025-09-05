@@ -7,7 +7,7 @@ account_id = "1e54c42267499cd9093c467c8b5517d1"
 
 [vars]
 ENV = "dev"
-ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev,https://flare360.org"
 
 [[d1_databases]]
 binding = "DB"
@@ -37,7 +37,7 @@ id = "46818e79770044efa2e863ca0b0f465a"
 [env.production]
 [env.production.vars]
 ENV = "prod"
-ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev"
+ENV_ORIGIN = "https://flare360-frontend.pages.dev,https://dcom360-frontend.pages.dev,https://flare360.org"
 
 [[env.production.d1_databases]]
 binding = "DB"
