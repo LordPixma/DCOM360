@@ -26,20 +26,46 @@ function json(data: unknown, init: ResponseInit = {}) {
 }
 
 async function processParsedEmail(parsed: ParsedEmail, env: Env) {
-  const existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: number; severity: string }>()
+  // Try the modern schema first (with external_id); fallback to legacy schema (id TEXT PK)
+  let existing: { id: any; severity: string } | null = null
+  let useLegacy = false
+  try {
+    existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE external_id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
+  } catch (err: any) {
+    if (String(err?.message || err).toLowerCase().includes('no such column: external_id')) {
+      useLegacy = true
+      existing = await env.DB.prepare('SELECT id, severity FROM disasters WHERE id = ?').bind(parsed.external_id).first<{ id: any; severity: string }>()
+    } else {
+      throw err
+    }
+  }
 
   let newDisasters = 0
   let updatedDisasters = 0
   if (!existing) {
-    await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
-      .run()
+    if (useLegacy) {
+      // Minimal columns on legacy schema
+      await env.DB.prepare(`INSERT INTO disasters (id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, is_active)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).
+        bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).
+        run()
+    } else {
+      await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
+        .run()
+    }
     newDisasters = 1
   } else {
-    await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
-      .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
-      .run()
+    if (useLegacy) {
+      await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`)
+        .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id)
+        .run()
+    } else {
+      await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
+        .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
+        .run()
+    }
     if (existing.severity !== parsed.severity) {
       await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)
                             VALUES (?, ?, ?, ?)`)
