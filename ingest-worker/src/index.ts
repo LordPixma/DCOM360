@@ -25,8 +25,21 @@ function json(data: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' }, ...init })
 }
 
+// Coerce incoming disaster types to a known set for consistency in DB and API
+function normalizeDisasterType(type: string | undefined, title?: string, description?: string): 'earthquake'|'cyclone'|'flood'|'wildfire'|'other' {
+  const v = (type || '').toLowerCase().trim()
+  const text = `${title || ''} ${description || ''}`.toLowerCase()
+  const hay = (v + ' ' + text)
+  if (/earth\s*quake|\bquake\b|m\s*\d+(?:\.\d+)?\s*earth/.test(hay)) return 'earthquake'
+  if (/tropical[_\s-]*cyclone|\bcyclone\b|\btyphoon\b|\bhurricane\b|\btc[-_\s]?\d*/.test(hay)) return 'cyclone'
+  if (/\bflood|flooding/.test(hay)) return 'flood'
+  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire alert/.test(hay)) return 'wildfire'
+  return 'other'
+}
+
 async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newDisasters: number; updatedDisasters: number; error?: string }>{
   try {
+  const normType = normalizeDisasterType(parsed.disaster_type, parsed.title, parsed.description)
     // Try the modern schema first (with external_id); fallback to legacy schema (id TEXT PK)
     let existing: { id: any; severity: string } | null = null
     let useLegacy = false
@@ -48,23 +61,23 @@ async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newD
         // Minimal columns on legacy schema
         await env.DB.prepare(`INSERT INTO disasters (id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, is_active)
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).
-          bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).
+          bind(parsed.external_id, normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).
           run()
       } else {
         await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
+          .bind(parsed.external_id, normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null)
           .run()
       }
       newDisasters = 1
     } else {
       if (useLegacy) {
         await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`)
-          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id)
+          .bind(normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id)
           .run()
       } else {
         await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`)
-          .bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
+          .bind(normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id)
           .run()
       }
       if (existing.severity !== parsed.severity) {

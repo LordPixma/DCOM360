@@ -1817,12 +1817,22 @@ init_modules_watch_stub();
 
 // src/parser.ts
 init_modules_watch_stub();
+function normalizeTypeRaw(type, title) {
+  const v = (type || "").toLowerCase().trim();
+  const t = (title || "").toLowerCase();
+  if (/earth\s*quake|\bquake\b|m\s*\d+(?:\.\d+)?\s*earth/.test(v + " " + t)) return "earthquake";
+  if (/tropical[_\s-]*cyclone|\bcyclone\b|\btyphoon\b|\bhurricane\b|\btc[-_\s]?\d*/.test(v + " " + t)) return "cyclone";
+  if (/\bflood|flooding/.test(v + " " + t)) return "flood";
+  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire alert/.test(v + " " + t)) return "wildfire";
+  return "other";
+}
+__name(normalizeTypeRaw, "normalizeTypeRaw");
 function parseEmail(subject, body) {
   const text = `${subject}
 ${body}`;
   const get = /* @__PURE__ */ __name((re) => text.match(re)?.[1]?.trim(), "get");
   const id = get(/ID:\s*(.+)/i) || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const type = (get(/Type:\s*(.+)/i) || "unknown").toLowerCase();
+  const type = normalizeTypeRaw((get(/Type:\s*(.+)/i) || "unknown").toLowerCase(), subject);
   const sevText = (get(/Severity:\s*(.+)/i) || "GREEN").toUpperCase();
   const severity = sevText.includes("RED") ? "RED" : sevText.includes("ORANGE") || sevText.includes("YELLOW") ? "ORANGE" : "GREEN";
   const title = get(/Title:\s*(.+)/i) || subject || `${type} event`;
@@ -1897,7 +1907,7 @@ ${body}`;
     const external_id = `gdacs:cyclone:${name}:${endIso}`;
     results.push({
       external_id,
-      disaster_type: "tropical_cyclone",
+      disaster_type: "cyclone",
       severity: sev,
       title,
       country: countryIso || void 0,
@@ -5887,8 +5897,20 @@ function json(data, init = {}) {
   return new Response(JSON.stringify(data), { headers: { "content-type": "application/json" }, ...init });
 }
 __name(json, "json");
+function normalizeDisasterType(type, title, description) {
+  const v = (type || "").toLowerCase().trim();
+  const text = `${title || ""} ${description || ""}`.toLowerCase();
+  const hay = v + " " + text;
+  if (/earth\s*quake|\bquake\b|m\s*\d+(?:\.\d+)?\s*earth/.test(hay)) return "earthquake";
+  if (/tropical[_\s-]*cyclone|\bcyclone\b|\btyphoon\b|\bhurricane\b|\btc[-_\s]?\d*/.test(hay)) return "cyclone";
+  if (/\bflood|flooding/.test(hay)) return "flood";
+  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire alert/.test(hay)) return "wildfire";
+  return "other";
+}
+__name(normalizeDisasterType, "normalizeDisasterType");
 async function processParsedEmail(parsed, env) {
   try {
+    const normType = normalizeDisasterType(parsed.disaster_type, parsed.title, parsed.description);
     let existing = null;
     let useLegacy = false;
     try {
@@ -5906,17 +5928,17 @@ async function processParsedEmail(parsed, env) {
     if (!existing) {
       if (useLegacy) {
         await env.DB.prepare(`INSERT INTO disasters (id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, is_active)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).run();
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`).bind(parsed.external_id, normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp).run();
       } else {
         await env.DB.prepare(`INSERT INTO disasters (external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(parsed.external_id, parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null).run();
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(parsed.external_id, normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null).run();
       }
       newDisasters = 1;
     } else {
       if (useLegacy) {
-        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`).bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id).run();
+        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ? WHERE id = ?`).bind(normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.external_id).run();
       } else {
-        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`).bind(parsed.disaster_type, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id).run();
+        await env.DB.prepare(`UPDATE disasters SET disaster_type = ?, severity = ?, title = ?, country = ?, coordinates_lat = ?, coordinates_lng = ?, event_timestamp = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE external_id = ?`).bind(normType, parsed.severity, parsed.title, parsed.country || null, parsed.coordinates_lat ?? null, parsed.coordinates_lng ?? null, parsed.event_timestamp, parsed.description || null, parsed.external_id).run();
       }
       if (existing.severity !== parsed.severity) {
         await env.DB.prepare(`INSERT INTO disaster_history (disaster_id, severity_old, severity_new, change_reason)

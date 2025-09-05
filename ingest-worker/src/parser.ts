@@ -13,12 +13,22 @@ export type ParsedEmail = {
 
 // Very lightweight parser that expects simple GDACS-like lines.
 // This can be expanded to robust MIME parsing or HTML when needed.
+function normalizeTypeRaw(type: string | undefined, title?: string): string {
+  const v = (type || '').toLowerCase().trim()
+  const t = (title || '').toLowerCase()
+  if (/earth\s*quake|\bquake\b|m\s*\d+(?:\.\d+)?\s*earth/.test(v + ' ' + t)) return 'earthquake'
+  if (/tropical[_\s-]*cyclone|\bcyclone\b|\btyphoon\b|\bhurricane\b|\btc[-_\s]?\d*/.test(v + ' ' + t)) return 'cyclone'
+  if (/\bflood|flooding/.test(v + ' ' + t)) return 'flood'
+  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire alert/.test(v + ' ' + t)) return 'wildfire'
+  return 'other'
+}
+
 export function parseEmail(subject: string, body: string): ParsedEmail {
   const text = `${subject}\n${body}`
   const get = (re: RegExp) => text.match(re)?.[1]?.trim()
 
   const id = get(/ID:\s*(.+)/i) || (globalThis as any).crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  const type = (get(/Type:\s*(.+)/i) || 'unknown').toLowerCase()
+  const type = normalizeTypeRaw((get(/Type:\s*(.+)/i) || 'unknown').toLowerCase(), subject)
   const sevText = (get(/Severity:\s*(.+)/i) || 'GREEN').toUpperCase()
   const severity = (sevText.includes('RED') ? 'RED' : sevText.includes('ORANGE') || sevText.includes('YELLOW') ? 'ORANGE' : 'GREEN') as ParsedEmail['severity']
   const title = get(/Title:\s*(.+)/i) || subject || `${type} event`
@@ -109,7 +119,7 @@ export function parseEmailMulti(subject: string, body: string): ParsedEmail[] {
     const external_id = `gdacs:cyclone:${name}:${endIso}`
     results.push({
       external_id,
-      disaster_type: 'tropical_cyclone',
+      disaster_type: 'cyclone',
       severity: sev,
       title,
       country: countryIso || undefined,
