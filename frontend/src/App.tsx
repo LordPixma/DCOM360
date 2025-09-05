@@ -176,6 +176,11 @@ export default function App() {
           </Suspense>
         </section>
 
+        {/* Live updates ticker directly under the map, full width */}
+        <section className="w-full px-4 sm:px-6 pt-4 sm:pt-6">
+          <NewsTicker />
+        </section>
+
         {/* Content below hero */}
         <section className="w-full px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 sm:gap-8">
@@ -186,7 +191,6 @@ export default function App() {
               </Suspense>
             </div>
             <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
-              <NewsTicker />
               <Filters />
               <RecentDisasters />
             </div>
