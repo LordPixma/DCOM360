@@ -81,7 +81,8 @@ jobs:
         id: prep
         run: |
           API_URL="${WORKER_URL:-https://flare360-worker.samuel-1e5.workers.dev}"
-          ING_URL="${INGEST_URL:-https://flare360-ingest.samuel-1e5.workers.dev}"
+          # Use the production environment domain for the ingest worker by default
+          ING_URL="${INGEST_URL:-https://flare360-ingest-production.samuel-1e5.workers.dev}"
           echo "api_url=$API_URL" >> $GITHUB_OUTPUT
           echo "ing_url=$ING_URL" >> $GITHUB_OUTPUT
       - name: Check /api/health
@@ -105,6 +106,8 @@ jobs:
       - name: Trigger GDACS ingest
         run: |
           set -euo pipefail
+          # small delay to allow propagation after deploy
+          sleep 3
           : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
           code=$(curl -s -o resp.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/gdacs" -H "authorization: Bearer ${INGEST_TOKEN}" || true)
           echo "HTTP_CODE=$code"
