@@ -8,5 +8,9 @@ export const cache = {
   async put(env: Env, key: string, value: string, ttlSec = 300): Promise<void> {
     if (!env.CACHE) return
     try { await env.CACHE.put(key, value, { expirationTtl: ttlSec }) } catch {}
+  },
+  async del(env: Env, key: string): Promise<void> {
+    if (!env.CACHE) return
+    try { await env.CACHE.delete(key) } catch {}
   }
 }

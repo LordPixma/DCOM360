@@ -1,0 +1,7 @@
+-- Admin users table for basic RBAC on Admin API
+CREATE TABLE IF NOT EXISTS admin_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  role TEXT NOT NULL DEFAULT 'admin',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

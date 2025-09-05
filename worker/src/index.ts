@@ -46,6 +46,93 @@ export default {
         { headers: { ...cors } }
       )
     }
+    // Admin auth helper
+    const isAdminRequest = url.pathname.startsWith('/api/admin/')
+    const requireAdmin = () => {
+      const hdr = request.headers.get('authorization') || ''
+      const token = hdr.replace(/^Bearer\s+/i, '')
+      if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+        return json({ success: false, data: null, error: { code: 'unauthorized', message: 'Invalid admin token' } }, { status: 401, headers: { ...cors } })
+      }
+      return null
+    }
+    if (isAdminRequest) {
+      const unauth = requireAdmin()
+      if (unauth) return unauth
+      // Router for admin endpoints
+      if (url.pathname === '/api/admin/health') {
+        return json({ success: true, data: { status: 'ok', ts: new Date().toISOString() } }, { headers: { ...cors } })
+      }
+      if (url.pathname === '/api/admin/cache/purge' && request.method === 'POST') {
+        const keys = [
+          'disasters:summary',
+          'disasters:current:all:all:all:50:0',
+          'disasters:history:7',
+          'countries:list'
+        ]
+        await Promise.all(keys.map(k => cache.del(env, k)))
+        return json({ success: true, data: { purged: keys.length } }, { headers: { ...cors } })
+      }
+      if (url.pathname === '/api/admin/reports/overview' && request.method === 'GET') {
+        try {
+          const totals = await env.DB.prepare("SELECT disaster_type as type, COUNT(*) as count FROM disasters GROUP BY disaster_type").all<{ type: string; count: number }>()
+          const severities = await env.DB.prepare("SELECT severity, COUNT(*) as count FROM disasters GROUP BY severity").all<{ severity: string; count: number }>()
+          const recent = await env.DB.prepare("SELECT id, title, event_timestamp FROM disasters ORDER BY event_timestamp DESC LIMIT 25").all<{ id: number; title: string; event_timestamp: string }>()
+          return json({ success: true, data: { totals: totals.results, severities: severities.results, recent: recent.results } }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'report_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
+      if (url.pathname === '/api/admin/disasters/purge' && request.method === 'POST') {
+        // Danger: full purge; support safe modes via query params
+        const mode = url.searchParams.get('mode') || 'demo'
+        try {
+          if (mode === 'demo') {
+            // Remove known demo titles and CI Smoke entries
+            await env.DB.batch([
+              env.DB.prepare("DELETE FROM disaster_history WHERE disaster_id IN (SELECT id FROM disasters WHERE title LIKE 'CI Smoke%')"),
+              env.DB.prepare("DELETE FROM disasters WHERE title LIKE 'CI Smoke%'")
+            ])
+          } else if (mode === 'all') {
+            // Full wipe
+            await env.DB.batch([
+              env.DB.prepare('DELETE FROM disaster_history'),
+              env.DB.prepare('DELETE FROM disasters')
+            ])
+          }
+          // Purge caches
+          const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
+          await Promise.all(keys.map(k => cache.del(env, k)))
+          return json({ success: true, data: { mode } }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'purge_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
+      if (url.pathname === '/api/admin/users' && request.method === 'POST') {
+        try {
+          const body = await request.json().catch(() => ({})) as any
+          const email = String(body.email || '').toLowerCase().trim()
+          const role = (String(body.role || 'admin')).toLowerCase()
+          if (!email) return json({ success: false, data: null, error: { code: 'bad_request', message: 'email required' } }, { status: 400, headers: { ...cors } })
+          await env.DB.prepare('INSERT OR IGNORE INTO admin_users (email, role) VALUES (?, ?)').bind(email, role).run()
+          return json({ success: true, data: { email, role } }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'user_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
+      if (url.pathname === '/api/admin/users' && request.method === 'GET') {
+        const rows = await env.DB.prepare('SELECT id, email, role, created_at FROM admin_users ORDER BY created_at DESC').all<{ id: number; email: string; role: string; created_at: string }>()
+        return json({ success: true, data: rows.results }, { headers: { ...cors } })
+      }
+      if (url.pathname === '/api/admin/users' && request.method === 'DELETE') {
+        const email = (url.searchParams.get('email') || '').toLowerCase().trim()
+        if (!email) return json({ success: false, data: null, error: { code: 'bad_request', message: 'email required' } }, { status: 400, headers: { ...cors } })
+        await env.DB.prepare('DELETE FROM admin_users WHERE email = ?').bind(email).run()
+        return json({ success: true, data: { email } }, { headers: { ...cors } })
+      }
+      // Unknown admin route
+      return json({ success: false, data: null, error: { code: 'not_found', message: 'Unknown admin route' } }, { status: 404, headers: { ...cors } })
+    }
     if (url.pathname === '/metrics' && request.method === 'GET') {
       const body = `# HELP app_info Basic info\n# TYPE app_info gauge\napp_info{env="${env.ENV_ORIGIN || 'unknown'}"} 1`
       return new Response(body, { headers: { 'content-type': 'text/plain; version=0.0.4' } })

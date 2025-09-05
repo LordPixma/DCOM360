@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database
   CACHE?: KVNamespace
   ENV_ORIGIN?: string
+  ADMIN_TOKEN?: string
 }
 
 export type SeverityDb = 'RED' | 'ORANGE' | 'GREEN'
