@@ -17,7 +17,8 @@
       "@/hooks/*": ["src/hooks/*"],
       "@/store/*": ["src/store/*"],
   "@/lib/*": ["src/lib/*"],
-  "@/admin/*": ["src/admin/*"]
+  "@/admin/*": ["src/admin/*"],
+  "@/visualizations/*": ["src/visualizations/*"]
     }
   },
   "include": ["src"],
