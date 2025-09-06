@@ -28,7 +28,7 @@ root.render(
         <Suspense fallback={<div className="p-6 text-sm text-slate-500 dark:text-slate-400">Loading…</div>}>
           <Routes>
             <Route path="/" element={<App />} />
-            <Route path="/admin" element={<AdminApp />} />
+            <Route path="/admin/*" element={<AdminApp />} />
             <Route path="/admin/login" element={<AdminLogin onLoggedIn={() => { window.location.href = '/admin' }} />} />
             <Route path="/viz/heatmap" element={<HeatmapView />} />
             <Route path="/viz/predict" element={<PredictiveAnalytics />} />
