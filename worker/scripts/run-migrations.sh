@@ -26,6 +26,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 for f in $(ls -1 "$ROOT_DIR/migrations"/*.sql | sort); do
+  base="$(basename "$f")"
+  if [[ -n "$REMOTE_FLAG" && "$base" == *_dev.sql ]]; then
+    echo "Skipping dev-only migration on remote: $f"
+    continue
+  fi
   echo "Applying migration: $f"
   wrangler d1 execute "$DB_TARGET" $REMOTE_FLAG --file "$f"
 done
