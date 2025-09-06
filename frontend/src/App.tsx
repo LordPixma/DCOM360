@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { TrafficLights } from '@/components/TrafficLights'
 import { RecentDisasters } from '@/components/RecentDisasters'
 import { Filters } from '@/components/Filters'
+import { RealTimeAlerts } from '@/components/RealTimeAlerts'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Moon, Sun, Share2 } from 'lucide-react'
@@ -181,11 +182,15 @@ export default function App() {
                 Visualizations
               </button>
               {vizOpen && (
-                <div role="menu" className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden z-30">
-                  <Link onClick={() => setVizOpen(false)} to="/viz/heatmap" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Heatmap</Link>
-                  <Link onClick={() => setVizOpen(false)} to="/viz/compare" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Comparative Analysis</Link>
-                  <Link onClick={() => setVizOpen(false)} to="/viz/trends" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Historical Trends</Link>
-                  <Link onClick={() => setVizOpen(false)} to="/viz/predict" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Predictive Analytics</Link>
+                <div role="menu" className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden z-30">
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">Basic Views</div>
+                  <Link onClick={() => setVizOpen(false)} to="/viz/heatmap" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">📊 Simple Heatmap</Link>
+                  <Link onClick={() => setVizOpen(false)} to="/viz/compare" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">📈 Comparative Analysis</Link>
+                  <Link onClick={() => setVizOpen(false)} to="/viz/trends" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">📉 Historical Trends</Link>
+                  
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 border-t border-b border-slate-200 dark:border-slate-700">🧠 AI-Powered</div>
+                  <Link onClick={() => setVizOpen(false)} to="/viz/predict" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">🔮 Predictive Analytics</Link>
+                  <Link onClick={() => setVizOpen(false)} to="/viz/heatmap-advanced" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">🗺️ Advanced Heatmap</Link>
                 </div>
               )}
             </div>
@@ -293,6 +298,9 @@ export default function App() {
           </div>
         </section>
       </main>
+      
+      {/* Real-time alerts overlay */}
+      <RealTimeAlerts />
     </div>
   )
 }
