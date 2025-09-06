@@ -113,6 +113,15 @@ jobs:
           test "$code" = "200"
           grep -q '"success":\s*true' summary.json
           grep -q '"totals"' summary.json
+      - name: Check /api/countries returns multiple
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o countries.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/countries")
+          test "$code" = "200"
+          jq -e '.success == true' countries.json >/dev/null
+          COUNT=$(jq '.data | length' countries.json)
+          echo "Country count: $COUNT"
+          [ "$COUNT" -gt 1 ]
       - name: OPTIONS on ingest endpoint
         run: |
           set -euo pipefail
