@@ -192,7 +192,7 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-  let sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
+  let sql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
                    FROM disasters WHERE is_active = 1`
         const params: any[] = []
         if (type) { sql += ` AND disaster_type = ?`; params.push(type) }
@@ -213,6 +213,7 @@ export default {
           longitude: r.coordinates_lng ?? undefined,
           title: r.title,
           occurred_at: r.event_timestamp,
+          source: r.external_id?.startsWith('gdacs:') ? 'gdacs' : r.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
         }))
   const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
         const jsonStr = JSON.stringify(body)
@@ -265,7 +266,7 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-        const sql = `SELECT id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
+  const sql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
                      FROM disasters
                      WHERE event_timestamp >= datetime('now', ?)
                      ORDER BY event_timestamp DESC`
@@ -279,6 +280,7 @@ export default {
           longitude: r.coordinates_lng ?? undefined,
           title: r.title,
           occurred_at: r.event_timestamp,
+          source: r.external_id?.startsWith('gdacs:') ? 'gdacs' : r.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
         }))
     const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { days } }
         const jsonStr = JSON.stringify(body)

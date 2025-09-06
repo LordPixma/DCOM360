@@ -10,6 +10,7 @@ export type Disaster = {
   longitude?: number
   title: string
   occurred_at: string
+  source?: 'gdacs' | 'reliefweb' | string
 }
 
 export interface DisastersQuery {

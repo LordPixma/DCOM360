@@ -34,6 +34,13 @@ export function RecentDisasters() {
     overscan: 8,
   })
 
+  const dotClass = (sev?: string) => {
+    const v = (sev || '').toLowerCase()
+    if (v === 'red') return 'bg-red-500 shadow-lg shadow-red-500/30'
+    if (v === 'yellow' || v === 'orange') return 'bg-orange-500 shadow-lg shadow-orange-500/30'
+    return 'bg-green-500 shadow-lg shadow-green-500/30'
+  }
+
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700">
@@ -71,16 +78,17 @@ export function RecentDisasters() {
                 return (
                   <li key={d.id} className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150 ${targetId === d.id ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}>
                     <div className="flex items-start gap-4">
-                      <div className={`flex-shrink-0 h-3 w-3 rounded-full mt-1.5 ${
-                        d.severity === 'red'
-                          ? 'bg-red-500 shadow-lg shadow-red-500/30'
-                          : d.severity === 'yellow'
-                          ? 'bg-orange-500 shadow-lg shadow-orange-500/30'
-                          : 'bg-green-500 shadow-lg shadow-green-500/30'
-                      }`}></div>
+                      <div className={`flex-shrink-0 h-3 w-3 rounded-full mt-1.5 ${dotClass(d.severity)}`}></div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3">
-                          <h4 className="font-semibold text-slate-900 dark:text-white line-clamp-2">{d.title}</h4>
+                          <h4 className="font-semibold text-slate-900 dark:text-white line-clamp-2 flex items-center gap-2">
+                            <span className="truncate">{d.title}</span>
+                            {d.source && (
+                              <span className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50">
+                                {d.source}
+                              </span>
+                            )}
+                          </h4>
                           <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{new Date(d.occurred_at).toLocaleString()}</span>
                         </div>
                         <div className="text-sm text-slate-600 dark:text-slate-400">

@@ -9,6 +9,7 @@ export type SeverityDb = 'RED' | 'ORANGE' | 'GREEN'
 
 export type DisasterRow = {
   id: string | number
+  external_id?: string
   disaster_type: string
   severity: SeverityDb
   title: string
@@ -27,4 +28,5 @@ export type Disaster = {
   longitude?: number
   title: string
   occurred_at: string
+  source?: string
 }
