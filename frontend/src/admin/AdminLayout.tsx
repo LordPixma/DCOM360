@@ -1,13 +1,38 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { setAdminToken } from '@/lib/adminApi'
 import { useEffect, useState } from 'react'
 
 export function AdminLayout() {
   const [token, setToken] = useState('')
   const [msg, setMsg] = useState('')
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Derive current tab from path
+  const path = location.pathname || ''
+  const currentTab = (path.split('/').pop() || 'overview') as 'overview'|'logs'|'countries'|'series'|'danger'
+
   useEffect(() => {
     try { const t = sessionStorage.getItem('ADMIN_TOKEN') || ''; if (t) setToken(t) } catch {}
   }, [])
+
+  // Keep ?tab synchronized with current path and support restoring via query on reload/deep-link
+  useEffect(() => {
+    const qpTab = (searchParams.get('tab') || '').toLowerCase()
+    if (qpTab && qpTab !== currentTab) {
+      // Navigate to the tab in query param
+      navigate(`/admin/${qpTab}`, { replace: true })
+      return
+    }
+    // Ensure URL always carries the current tab for shareability
+    if (currentTab && qpTab !== currentTab) {
+      const next = new URLSearchParams(searchParams)
+      next.set('tab', currentTab)
+      setSearchParams(next, { replace: true })
+    }
+  }, [currentTab])
+
   return (
     <div className="p-4 sm:p-6 space-y-4">
       <h2 className="text-lg font-semibold">Admin Dashboard</h2>
@@ -30,7 +55,7 @@ export function AdminLayout() {
         ].map((t) => (
           <NavLink
             key={t.to}
-            to={t.to}
+            to={`${t.to}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
             className={({ isActive }) => `px-3 py-2 text-sm border-b-2 ${isActive ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-600'}`}
           >
             {t.label}

@@ -1,5 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { adminApi } from '@/lib/adminApi'
+import { Doughnut, Bar } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+} from 'chart.js'
 
 type Overview = {
   totals: { type: string; count: number }[]
@@ -17,22 +27,47 @@ export function OverviewTab() {
     catch (e: any) { setMsg(e?.message || 'Error') } finally { setLoading(false) }
   })() }, [])
 
+  useEffect(() => {
+    // Register needed chart components once
+    try { ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement) } catch {}
+  }, [])
+
+  const byType = useMemo(() => {
+    if (!data) return null
+    return {
+      labels: data.totals.map((t) => t.type),
+      datasets: [{
+        label: 'Totals',
+        data: data.totals.map((t) => t.count),
+        backgroundColor: ['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#f472b6','#10b981'],
+      }]
+    }
+  }, [data])
+
+  const bySeverity = useMemo(() => {
+    if (!data) return null
+    return {
+      labels: data.severities.map((s) => s.severity),
+      datasets: [{
+        label: 'Count',
+        data: data.severities.map((s) => s.count),
+        backgroundColor: '#93c5fd',
+      }]
+    }
+  }, [data])
+
   if (loading) return <div className="p-3 text-sm text-slate-500">Loading…</div>
   if (msg) return <div className="p-3 text-sm text-slate-500">{msg}</div>
   if (!data) return null
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="border rounded p-3">
         <div className="font-medium mb-2">Totals by Type</div>
-        <ul className="text-sm space-y-1">
-          {data.totals.map((t) => <li key={t.type}>{t.type}: {t.count}</li>)}
-        </ul>
+        {byType ? <Doughnut data={byType} /> : null}
       </div>
       <div className="border rounded p-3">
         <div className="font-medium mb-2">Totals by Severity</div>
-        <ul className="text-sm space-y-1">
-          {data.severities.map((s) => <li key={s.severity}>{s.severity}: {s.count}</li>)}
-        </ul>
+        {bySeverity ? <Bar data={bySeverity} options={{ responsive: true, scales: { y: { beginAtZero: true } } }} /> : null}
       </div>
       <div className="border rounded p-3 md:col-span-1">
         <div className="font-medium mb-2">Recent</div>
