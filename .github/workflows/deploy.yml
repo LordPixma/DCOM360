@@ -137,6 +137,35 @@ jobs:
             exit 1
           fi
 
+      - name: Trigger VolcanoDiscovery ingest
+        run: |
+          set -euo pipefail
+          # small delay to avoid race with first cache warmups
+          sleep 3
+          : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            code=$(curl -s -o resp-vd.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/volcano" -H "authorization: Bearer ${INGEST_TOKEN}" || true)
+            echo "HTTP_CODE=$code"
+            if [ "$code" = "200" ] && grep -q '"success":\s*true' resp-vd.json; then
+              break
+            fi
+            if grep -q 'Too many API requests' resp-vd.json || grep -q 'INGEST_ERROR' resp-vd.json || grep -q 'UPSTREAM' resp-vd.json; then
+              echo "Upstream or transient error. Retrying in $((attempt*2)) seconds..."
+              sleep $((attempt*2))
+              attempt=$((attempt+1))
+            else
+              echo "Response body:" && cat resp-vd.json || true
+              exit 1
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "VolcanoDiscovery ingest failed after $max_attempts attempts (non-fatal)."
+            # Don't fail entire pipeline on external feed issues
+            exit 0
+          fi
+
   pages-deploy:
     name: Deploy Pages (production)
     runs-on: ubuntu-latest
