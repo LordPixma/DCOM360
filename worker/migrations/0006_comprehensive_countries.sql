@@ -1,11 +1,8 @@
 -- Populate countries table with comprehensive list of world countries
--- This replaces the limited test data with actual ISO 3166-1 countries
-
--- First, clear existing test data
-DELETE FROM countries WHERE code IN ('HS', 'RC', 'TL');
+-- Use INSERT OR IGNORE to avoid duplicate inserts across re-runs
 
 -- Insert comprehensive list of world countries
-INSERT OR REPLACE INTO countries (code, name) VALUES
+INSERT OR IGNORE INTO countries (code, name) VALUES
   -- North America
   ('US', 'United States'),
   ('CA', 'Canada'),
