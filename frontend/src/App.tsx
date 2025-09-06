@@ -136,6 +136,7 @@ export default function App() {
             <div className="hidden md:block">
               <ApiStatus />
             </div>
+            <Link to="/viz/heatmap" className="hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-200">Visualizations</Link>
             <Link to="/admin" className="hidden md:inline-flex items-center px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-200">Admin</Link>
             <button className="relative p-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors duration-200" aria-label="Notifications">
               <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />

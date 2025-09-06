@@ -16,7 +16,8 @@
       "@/components/*": ["src/components/*"],
       "@/hooks/*": ["src/hooks/*"],
       "@/store/*": ["src/store/*"],
-      "@/lib/*": ["src/lib/*"]
+  "@/lib/*": ["src/lib/*"],
+  "@/admin/*": ["src/admin/*"]
     }
   },
   "include": ["src"],

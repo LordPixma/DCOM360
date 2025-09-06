@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { AdminLogin } from '@/components/AdminLogin'
-import { AdminDashboard } from '@/components/AdminDashboard'
+const AdminLayout = lazy(() => import('@/admin/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const OverviewTab = lazy(() => import('@/admin/tabs/OverviewTab').then(m => ({ default: m.OverviewTab })))
+const LogsTab = lazy(() => import('@/admin/tabs/LogsTab').then(m => ({ default: m.LogsTab })))
+const CountriesTab = lazy(() => import('@/admin/tabs/CountriesTab').then(m => ({ default: m.CountriesTab })))
+const SeriesTab = lazy(() => import('@/admin/tabs/SeriesTab').then(m => ({ default: m.SeriesTab })))
+const DangerTab = lazy(() => import('@/admin/tabs/DangerTab').then(m => ({ default: m.DangerTab })))
 import { clearAdminEmail, clearAdminToken } from '@/lib/adminApi'
 
 function isLoggedIn() {
@@ -31,7 +36,31 @@ export default function AdminApp() {
         </div>
       </header>
       <main>
-        {authed ? <AdminDashboard /> : <AdminLogin onLoggedIn={() => setAuthed(true)} />}
+        {authed ? (
+          <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading admin…</div>}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/admin/overview" replace />} />
+              <Route path="/overview" element={<AdminLayout />}>
+                <Route index element={<OverviewTab />} />
+              </Route>
+              <Route path="/logs" element={<AdminLayout />}>
+                <Route index element={<LogsTab />} />
+              </Route>
+              <Route path="/countries" element={<AdminLayout />}>
+                <Route index element={<CountriesTab />} />
+              </Route>
+              <Route path="/series" element={<AdminLayout />}>
+                <Route index element={<SeriesTab />} />
+              </Route>
+              <Route path="/danger" element={<AdminLayout />}>
+                <Route index element={<DangerTab />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/admin/overview" replace />} />
+            </Routes>
+          </Suspense>
+        ) : (
+          <AdminLogin onLoggedIn={() => setAuthed(true)} />
+        )}
       </main>
     </div>
   )

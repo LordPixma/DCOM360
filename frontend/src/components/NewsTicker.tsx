@@ -7,9 +7,16 @@ export function NewsTicker() {
   const filters = useAppStore((s) => s.filters)
   const { data } = useDisasters({ limit: 50, ...filters })
   const items: Disaster[] = useMemo(() => data || [], [data])
+  // Only show red and orange (yellow) alerts
+  const criticalItems = useMemo(
+    () => (items || []).filter((d) => d.severity === 'red' || d.severity === 'yellow'),
+    [items]
+  )
 
   const [paused, setPaused] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [index, setIndex] = useState(0)
+  const [fading, setFading] = useState(false)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -20,6 +27,21 @@ export function NewsTicker() {
     el.addEventListener('mouseleave', onLeave)
     return () => { el.removeEventListener('mouseenter', onEnter); el.removeEventListener('mouseleave', onLeave) }
   }, [])
+
+  // Cycle items with fade transition
+  useEffect(() => {
+    if (paused || criticalItems.length <= 1) return
+    const id = setInterval(() => {
+      setFading(true)
+      // Wait for fade-out then switch item and fade back in
+      const to = setTimeout(() => {
+        setIndex((i) => (i + 1) % criticalItems.length)
+        setFading(false)
+      }, 300)
+      return () => clearTimeout(to)
+    }, 4000)
+    return () => clearInterval(id)
+  }, [paused, criticalItems.length])
 
   return (
     <div className="w-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
@@ -35,42 +57,21 @@ export function NewsTicker() {
           {paused ? <><Play className="h-3.5 w-3.5"/> Resume</> : <><Pause className="h-3.5 w-3.5"/> Pause</>}
         </button>
       </div>
-  <div ref={containerRef} className="relative h-12 sm:h-14 overflow-hidden" aria-live="polite">
-        {/* Marquee wrapper centered vertically */}
-        <div
-      className={`absolute left-0 top-1/2 -translate-y-1/2 will-change-transform px-2 sm:px-3 ${paused ? '' : 'animate-marquee'}`}
-      style={{ animationDuration: `${Math.max(20, items.length * 2)}s` }}
-        >
-          {/* Track A */}
-      <div className="inline-flex items-center whitespace-nowrap pr-8">
-            {items.length === 0 ? (
-              <span className="inline-block px-4 text-sm text-slate-500 dark:text-slate-400">No recent updates</span>
-            ) : (
-              items.map((d, i) => (
-        <span key={d.id ?? i} className="inline-flex items-center gap-2 px-4 text-sm leading-6">
-                  <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : d.severity === 'yellow' ? 'bg-orange-500' : 'bg-green-500'}`}></span>
-                  <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
-                  <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
-                </span>
-              ))
-            )}
-          </div>
-          {/* Track B (duplicate for seamless loop) */}
-          {items.length > 0 && (
-    <div className="inline-flex items-center whitespace-nowrap pr-8" aria-hidden="true">
-      {items.map((d, i) => (
-        <span key={`dup-${d.id ?? i}`} className="inline-flex items-center gap-2 px-4 text-sm leading-6">
-                  <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : d.severity === 'yellow' ? 'bg-orange-500' : 'bg-green-500'}`}></span>
-                  <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
-                  <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
-                </span>
-              ))}
-            </div>
-          )}
-      {/* Edge fade masks */}
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-10 sm:w-14 bg-gradient-to-r from-white dark:from-slate-800 to-transparent" />
-      <div className="pointer-events-none absolute right-0 top-0 h-full w-10 sm:w-14 bg-gradient-to-l from-white dark:from-slate-800 to-transparent" />
-        </div>
+      <div ref={containerRef} className="relative h-12 sm:h-14 overflow-hidden flex items-center px-3" aria-live="polite" role="status">
+        {criticalItems.length === 0 ? (
+          <span className="inline-block text-sm text-slate-500 dark:text-slate-400">No critical updates</span>
+        ) : (
+          (() => {
+            const d = criticalItems[Math.min(index, criticalItems.length - 1)]
+            return (
+              <span className={`inline-flex items-center gap-2 text-sm leading-6 transition-opacity duration-300 ${fading ? 'opacity-0' : 'opacity-100'}`}>
+                <span className={`h-2 w-2 rounded-full ${d.severity === 'red' ? 'bg-red-500' : 'bg-orange-500'}`}></span>
+                <span className="text-slate-900 dark:text-slate-200 font-medium">{d.title}</span>
+                <span className="text-slate-500 dark:text-slate-400">{d.type}{d.country ? ` • ${d.country}` : ''}</span>
+              </span>
+            )
+          })()
+        )}
       </div>
     </div>
   )
