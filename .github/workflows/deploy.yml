@@ -67,6 +67,8 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@4
       - name: Apply D1 migrations (production)
         working-directory: worker
         env:
