@@ -152,7 +152,7 @@ function capitalize(s: string) {
 }
 
 // Basic country name to ISO2 normalization. Fallback returns undefined.
-function resolveCountryIso2(name: string): string | undefined {
+export function resolveCountryIso2(name: string): string | undefined {
   const n = name
     .toLowerCase()
     .replace(/[^a-z\s]/g, '')
