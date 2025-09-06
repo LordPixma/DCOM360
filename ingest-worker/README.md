@@ -6,6 +6,7 @@ This worker ingests GDACS-like alerts via:
 - Cloudflare Email Routing → Email Workers: emails forwarded to the worker are parsed and persisted.
 - RSS endpoints:
    - `POST /ingest/gdacs` pulls the GDACS RSS feed once on demand and persists new items.
+   - `POST /ingest/reliefweb` pulls the ReliefWeb Disasters RSS on demand and persists items with inferred severities.
    - `POST /ingest/volcano` pulls the VolcanoDiscovery RSS once on demand and persists new items.
 
 ## Configure Cloudflare Email Routing
@@ -38,6 +39,7 @@ Subject is also considered for ID/title. The parser is tolerant and falls back w
 - HTTP: `npm run dev` then `curl -X POST http://127.0.0.1:8787/ingest/email -H "content-type: application/json" -H "authorization: Bearer dev-token-123" -d '{"subject":"[GDACS] Test","body":"Type: Flood\nSeverity: ORANGE"}'`
 - Email: Email Workers aren’t simulated in `--local`; test via production/staging routing or send HTTP JSON to mimic content.
 - GDACS RSS: `curl -X POST http://127.0.0.1:8787/ingest/gdacs -H "authorization: Bearer dev-token-123"`
+- ReliefWeb RSS: `curl -X POST http://127.0.0.1:8787/ingest/reliefweb -H "authorization: Bearer dev-token-123"`
 - VolcanoDiscovery RSS: `curl -X POST http://127.0.0.1:8787/ingest/volcano -H "authorization: Bearer dev-token-123"`
 
 ## Data Flow
