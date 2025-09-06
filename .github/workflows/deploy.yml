@@ -67,6 +67,15 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+      - name: Install Wrangler CLI
+        run: npm install -g wrangler@4
+      - name: Apply D1 migrations (production)
+        working-directory: worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          bash scripts/run-migrations.sh dcom360-db --remote
 
   smoke-test:
     name: Post-deploy smoke tests
@@ -104,6 +113,15 @@ jobs:
           test "$code" = "200"
           grep -q '"success":\s*true' summary.json
           grep -q '"totals"' summary.json
+      - name: Check /api/countries returns multiple
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o countries.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/countries")
+          test "$code" = "200"
+          jq -e '.success == true' countries.json >/dev/null
+          COUNT=$(jq '.data | length' countries.json)
+          echo "Country count: $COUNT"
+          [ "$COUNT" -gt 1 ]
       - name: OPTIONS on ingest endpoint
         run: |
           set -euo pipefail
@@ -135,6 +153,35 @@ jobs:
           if [ $attempt -gt $max_attempts ]; then
             echo "Failed after $max_attempts attempts."
             exit 1
+          fi
+
+      - name: Trigger VolcanoDiscovery ingest
+        run: |
+          set -euo pipefail
+          # small delay to avoid race with first cache warmups
+          sleep 3
+          : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            code=$(curl -s -o resp-vd.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/volcano" -H "authorization: Bearer ${INGEST_TOKEN}" || true)
+            echo "HTTP_CODE=$code"
+            if [ "$code" = "200" ] && grep -q '"success":\s*true' resp-vd.json; then
+              break
+            fi
+            if grep -q 'Too many API requests' resp-vd.json || grep -q 'INGEST_ERROR' resp-vd.json || grep -q 'UPSTREAM' resp-vd.json; then
+              echo "Upstream or transient error. Retrying in $((attempt*2)) seconds..."
+              sleep $((attempt*2))
+              attempt=$((attempt+1))
+            else
+              echo "Response body:" && cat resp-vd.json || true
+              exit 1
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "VolcanoDiscovery ingest failed after $max_attempts attempts (non-fatal)."
+            # Don't fail entire pipeline on external feed issues
+            exit 0
           fi
 
   pages-deploy:

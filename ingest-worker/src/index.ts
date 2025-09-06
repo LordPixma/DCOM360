@@ -1,6 +1,7 @@
 import { parseEmail, parseEmailMulti, type ParsedEmail } from './parser'
 import { parseGdacsFeed } from './gdacs'
 import { parseReliefwebFeed } from './reliefweb'
+import { parseVolcanoDiscoveryFeed } from './volcanodiscovery'
 import PostalMime from 'postal-mime'
 
 interface Env {
@@ -11,6 +12,7 @@ interface Env {
   ALLOW_FROM?: string
   GDACS_RSS_URL?: string
   RELIEFWEB_RSS_URL?: string
+  VOLCANODISCOVERY_RSS_URL?: string
 }
 
 // Minimal ForwardableEmailMessage type for Email Workers
@@ -190,6 +192,43 @@ export default {
       }
     }
 
+    // Manual trigger to pull VolcanoDiscovery RSS now
+    if (req.method === 'POST' && pathname === '/ingest/volcano') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        const rssUrl = env.VOLCANODISCOVERY_RSS_URL || 'https://www.volcanodiscovery.com/volcanoesandearthquakenews.rss'
+        const res = await fetch(rssUrl, { cf: { cacheTtl: 60, cacheEverything: true } as any })
+        if (!res.ok) return json({ success: false, error: { code: 'UPSTREAM', message: `VD fetch ${res.status}` } }, { status: 502 })
+        const xml = await res.text()
+        const items = parseVolcanoDiscoveryFeed(xml).slice(0, 20)
+        let newDisasters = 0
+        let updatedDisasters = 0
+        const errors: Array<{ id: string; error: string }> = []
+        for (const p of items) {
+          const r = await processParsedEmail(p as any, env)
+          newDisasters += r.newDisasters
+          updatedDisasters += r.updatedDisasters
+          if (r.error) errors.push({ id: (p as any).external_id, error: r.error })
+        }
+        if (env.CACHE) {
+          const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
+          await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+        }
+        if (errors.length) {
+          return json({ success: false, error: { code: 'PARTIAL_FAIL', message: 'Some items failed', details: errors }, data: { processed: items.length, newDisasters, updatedDisasters } }, { status: 207 })
+        }
+        return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
+      } catch (err: any) {
+        const message = err?.message || String(err)
+        return json({ success: false, error: { code: 'INGEST_ERROR', message } }, { status: 500 })
+      }
+    }
+
   if (req.method === 'POST' && pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
@@ -282,21 +321,29 @@ export default {
   // Scheduled cron to pull GDACS periodically
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
-      // Fetch GDACS
+      // Pull GDACS, ReliefWeb, and VolcanoDiscovery feeds in parallel
       const gdacsUrl = env.GDACS_RSS_URL || 'https://www.gdacs.org/xml/rss.xml'
-      const [gdacsRes, reliefRes] = await Promise.all([
+      const reliefUrl = env.RELIEFWEB_RSS_URL || 'https://reliefweb.int/disasters/rss.xml'
+      const vdUrl = env.VOLCANODISCOVERY_RSS_URL || 'https://www.volcanodiscovery.com/volcanoesandearthquakenews.rss'
+      const [gdacsRes, reliefRes, vdRes] = await Promise.all([
         fetch(gdacsUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
-        fetch(env.RELIEFWEB_RSS_URL || 'https://reliefweb.int/disasters/rss.xml', { cf: { cacheTtl: 300, cacheEverything: true } as any })
+        fetch(reliefUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
+        fetch(vdUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
       ])
       if (gdacsRes.ok) {
         const xml = await gdacsRes.text()
         const items = parseGdacsFeed(xml)
-        await Promise.all(items.map(async (p) => processParsedEmail(p as any, env)))
+        await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
       }
       if (reliefRes.ok) {
         const xml = await reliefRes.text()
         const items = parseReliefwebFeed(xml)
-        await Promise.all(items.map(async (p) => processParsedEmail(p as any, env)))
+        await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+      }
+      if (vdRes.ok) {
+        const xml = await vdRes.text()
+        const items = parseVolcanoDiscoveryFeed(xml)
+        await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
       }
       if (env.CACHE) {
         const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']

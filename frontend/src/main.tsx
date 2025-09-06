@@ -8,6 +8,7 @@ const AdminApp = lazy(() => import('./AdminApp'))
 const AdminLogin = lazy(() => import('@/components/AdminLogin').then(m => ({ default: m.AdminLogin })))
 // Visualization routes
 const HeatmapView = lazy(() => import('@/visualizations/HeatmapView').then(m => ({ default: m.HeatmapView })))
+const AdvancedHeatmap = lazy(() => import('@/visualizations/AdvancedHeatmap').then(m => ({ default: m.AdvancedHeatmap })))
 const PredictiveAnalytics = lazy(() => import('@/visualizations/PredictiveAnalytics').then(m => ({ default: m.PredictiveAnalytics })))
 const ComparativeAnalysis = lazy(() => import('@/visualizations/ComparativeAnalysis').then(m => ({ default: m.ComparativeAnalysis })))
 const HistoricalTrends = lazy(() => import('@/visualizations/HistoricalTrends').then(m => ({ default: m.HistoricalTrends })))
@@ -31,6 +32,7 @@ root.render(
             <Route path="/admin/*" element={<AdminApp />} />
             <Route path="/admin/login" element={<AdminLogin onLoggedIn={() => { window.location.href = '/admin' }} />} />
             <Route path="/viz/heatmap" element={<HeatmapView />} />
+            <Route path="/viz/heatmap-advanced" element={<AdvancedHeatmap />} />
             <Route path="/viz/predict" element={<PredictiveAnalytics />} />
             <Route path="/viz/compare" element={<ComparativeAnalysis />} />
             <Route path="/viz/trends" element={<HistoricalTrends />} />
