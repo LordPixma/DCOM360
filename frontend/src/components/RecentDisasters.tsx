@@ -1,6 +1,7 @@
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useAppStore } from '@/store/appStore'
 import { Clock, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
@@ -11,6 +12,7 @@ export function RecentDisasters() {
   const loaderRef = useRef<HTMLDivElement | null>(null)
   const parentRef = useRef<HTMLDivElement | null>(null)
   const { data, isLoading } = useDisasters({ limit: 20, offset, ...filters })
+  const navigate = useNavigate()
   const targetId = useMemo(() => new URLSearchParams(window.location.search).get('disasterId'), [])
 
   useEffect(() => { setItems([]); setOffset(0) }, [filters.country, filters.severity, filters.type])
@@ -76,7 +78,15 @@ export function RecentDisasters() {
               {rowVirtualizer.getVirtualItems().map((row) => {
                 const d = items[row.index] as Disaster
                 return (
-                  <li key={d.id} className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150 ${targetId === d.id ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}>
+                  <li
+                    key={d.id}
+                    className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${targetId === d.id ? 'ring-2 ring-blue-500 rounded-xl' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/disaster/${d.id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/disaster/${d.id}`) }}
+                    aria-label={`View details for ${d.title}`}
+                  >
                     <div className="flex items-start gap-4">
                       <div className={`flex-shrink-0 h-3 w-3 rounded-full mt-1.5 ${dotClass(d.severity)}`}></div>
                       <div className="flex-1 min-w-0">

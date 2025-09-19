@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { TrafficLights } from '@/components/TrafficLights'
 import { RecentDisasters } from '@/components/RecentDisasters'
+import { BreakingNews } from '@/components/BreakingNews'
 import { Filters } from '@/components/Filters'
 import { RealTimeAlerts } from '@/components/RealTimeAlerts'
 import { useAppStore } from '@/store/appStore'
@@ -293,6 +294,7 @@ export default function App() {
             </div>
             <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
               <Filters />
+              <BreakingNews />
               <RecentDisasters />
             </div>
           </div>

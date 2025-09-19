@@ -229,6 +229,42 @@ export default {
   return json(body, { headers: { ...cors } })
       }
     }
+    // Single disaster details
+    if (url.pathname.startsWith('/api/disasters/') && request.method === 'GET') {
+      const id = url.pathname.split('/').pop()!
+      try {
+        if (!env.DB) {
+          // fallback mock
+          const item = mockDisasters.find(d => d.id === id)
+          if (!item) return json({ success: false, data: null, error: { code: 'not_found', message: 'Disaster not found'} }, { status: 404, headers: { ...cors } })
+          return json({ success: true, data: item }, { headers: { ...cors } })
+        }
+        const sql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp, description, magnitude, wind_speed, depth_km, affected_population, affected_radius_km, metadata FROM disasters WHERE id = ? OR external_id = ? LIMIT 1`
+        const row = await env.DB.prepare(sql).bind(id, id).first<any>()
+        if (!row) return json({ success: false, data: null, error: { code: 'not_found', message: 'Disaster not found' } }, { status: 404, headers: { ...cors } })
+        const item: Disaster & Record<string, unknown> = {
+          id: String(row.id),
+          type: row.disaster_type,
+          severity: mapSeverityToClient(row.severity),
+          country: row.country || undefined,
+          latitude: row.coordinates_lat ?? undefined,
+          longitude: row.coordinates_lng ?? undefined,
+          title: row.title,
+          occurred_at: row.event_timestamp,
+          source: row.external_id?.startsWith('gdacs:') ? 'gdacs' : row.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
+          description: row.description || undefined,
+          magnitude: row.magnitude ?? undefined,
+          wind_speed: row.wind_speed ?? undefined,
+          depth_km: row.depth_km ?? undefined,
+          affected_population: row.affected_population ?? undefined,
+          affected_radius_km: row.affected_radius_km ?? undefined,
+          metadata: (() => { try { return row.metadata ? JSON.parse(row.metadata) : undefined } catch { return undefined } })()
+        }
+        return json({ success: true, data: item }, { headers: { ...cors } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'server_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
   if (url.pathname === '/api/disasters/summary' && request.method === 'GET') {
       try {
         if (!env.DB) throw new Error('DB not bound; using mock')
