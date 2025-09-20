@@ -204,6 +204,9 @@ export const RealTimeAlerts: React.FC = () => {
   };
 
   const unreadCount = alerts.filter(alert => !alert.read).length;
+  const fmtUTC = (ts: number) => {
+    try { return new Date(ts).toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' } catch { return String(ts) }
+  }
 
   return (
     <>
@@ -398,7 +401,7 @@ export const RealTimeAlerts: React.FC = () => {
                     </div>
                     <div className="flex items-center space-x-1 text-xs opacity-60">
                       <Clock className="w-3 h-3" />
-                      <span>{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                      <span title={new Date(alert.timestamp).toISOString()}>Updated {fmtUTC(alert.timestamp)}</span>
                     </div>
                   </div>
                 </div>

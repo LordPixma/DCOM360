@@ -1,5 +1,5 @@
 import { Env, Disaster, DisasterRow } from './types'
-import { json, mapSeverityToClient, buildCorsHeaders } from './utils'
+import { json, mapSeverityToClient, buildCorsHeaders, sanitizeText } from './utils'
 import { cache } from './cache'
 import { XMLParser } from 'fast-xml-parser'
 
@@ -289,7 +289,7 @@ export default {
           country: r.country || undefined,
           latitude: r.coordinates_lat ?? undefined,
           longitude: r.coordinates_lng ?? undefined,
-          title: r.title,
+          title: sanitizeText(r.title) || r.title,
           occurred_at: r.event_timestamp,
           source: r.external_id?.startsWith('gdacs:') ? 'gdacs' : r.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
         }))
@@ -327,10 +327,10 @@ export default {
           country: row.country || undefined,
           latitude: row.coordinates_lat ?? undefined,
           longitude: row.coordinates_lng ?? undefined,
-          title: row.title,
+          title: sanitizeText(row.title) || row.title,
           occurred_at: row.event_timestamp,
           source: row.external_id?.startsWith('gdacs:') ? 'gdacs' : row.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
-          description: row.description || undefined,
+          description: sanitizeText(row.description) || row.description || undefined,
           magnitude: row.magnitude ?? undefined,
           wind_speed: row.wind_speed ?? undefined,
           depth_km: row.depth_km ?? undefined,

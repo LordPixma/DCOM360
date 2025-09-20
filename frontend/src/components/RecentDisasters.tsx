@@ -30,6 +30,10 @@ export function RecentDisasters() {
     return 'bg-green-500 shadow-lg shadow-green-500/30'
   }
 
+  const fmtUTC = (ts: string) => {
+    try { return new Date(ts).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' } catch { return ts }
+  }
+
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700">
@@ -39,7 +43,7 @@ export function RecentDisasters() {
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-slate-900 dark:text-white">Recent Events</h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Latest disaster updates</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 hidden sm:block">Latest disaster updates</p>
           </div>
           <button onClick={() => navigate('/events')} className="text-xs text-blue-600 hover:underline">View all</button>
         </div>
@@ -87,7 +91,7 @@ export function RecentDisasters() {
                               </span>
                             )}
                           </h4>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{new Date(d.occurred_at).toLocaleString()}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap" title={new Date(d.occurred_at).toISOString()}>{fmtUTC(d.occurred_at)}</span>
                         </div>
                         <div className="text-sm text-slate-600 dark:text-slate-400">
                           {d.type}{d.country ? ` • ${d.country}` : ''}

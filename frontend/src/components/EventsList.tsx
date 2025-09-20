@@ -48,6 +48,22 @@ function prettyType(t?: string, title?: string): string {
   return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Event'
 }
 
+function typeIcon(label: string): string {
+  const t = label.toLowerCase()
+  if (t.includes('earthquake')) return '🌎'
+  if (t.includes('volcano')) return '🌋'
+  if (t.includes('flood')) return '🌊'
+  if (t.includes('cyclone') || t.includes('hurricane') || t.includes('typhoon')) return '🌀'
+  if (t.includes('wildfire') || t.includes('bushfire')) return '🔥'
+  return '⚠️'
+}
+
+function formatUTC(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC'
+  } catch { return iso }
+}
+
 function formatRelative(dateIso: string): string {
   const now = Date.now()
   const t = new Date(dateIso).getTime()
@@ -214,13 +230,24 @@ export default function EventsList() {
                         <button onClick={() => navigate(`/disaster/${d.id}`)} className="font-semibold text-left text-slate-900 dark:text-white hover:underline line-clamp-2">
                           {stripHtmlAndDecode(d.title)}
                         </button>
-                        <span title={new Date(d.occurred_at).toLocaleString()} className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelative(d.occurred_at)}</span>
+                        <span title={formatUTC(d.occurred_at)} className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelative(d.occurred_at)}</span>
                       </div>
                       <div className="mt-1 flex items-center flex-wrap gap-2 text-xs">
-                        <span className="text-slate-600 dark:text-slate-400">{prettyType(d.type, d.title)}{d.country ? ` • ${d.country}` : ''}</span>
+                        <span className="text-slate-600 dark:text-slate-400">
+                          <span aria-hidden className="mr-1">{typeIcon(prettyType(d.type, d.title))}</span>
+                          {prettyType(d.type, d.title)}{d.country ? ` • ${d.country}` : ''}
+                        </span>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full border ${severityLabel(d.severity).className}`}>{severityLabel(d.severity).label}</span>
                         {d.source && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide">{d.source}</span>
+                          <a
+                            href={d.source === 'gdacs' ? 'https://www.gdacs.org' : (d.source === 'reliefweb' ? 'https://reliefweb.int' : '#')}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide hover:underline"
+                            title={d.source === 'gdacs' ? 'Data source: GDACS' : d.source === 'reliefweb' ? 'Data source: ReliefWeb' : 'Data source'}
+                          >
+                            {d.source}
+                          </a>
                         )}
                       </div>
                       {/* Earthquake report summary, if applicable */}

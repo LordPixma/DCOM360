@@ -24,3 +24,16 @@ export function buildCorsHeaders(env: { ENV_ORIGIN?: string }, req: Request): Re
   // If misconfigured, be conservative: omit ACAO (browser will block)
   return {}
 }
+
+// Very basic HTML sanitizer: remove tags and collapse whitespace
+export function sanitizeText(input: unknown): string | undefined {
+  if (input === null || input === undefined) return undefined
+  try {
+    return String(input)
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  } catch { return undefined }
+}

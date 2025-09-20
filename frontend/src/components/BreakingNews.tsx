@@ -21,6 +21,14 @@ export function BreakingNews() {
     return () => { mounted = false }
   }, [])
 
+  const fmtUTC = (ts: string) => {
+    try {
+      return new Date(ts).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC'
+    } catch {
+      return ts
+    }
+  }
+
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3">
@@ -44,8 +52,12 @@ export function BreakingNews() {
               <div className="font-medium text-slate-900 dark:text-white">{it.title}</div>
             )}
             <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
-              <span>{new Date(it.ts).toLocaleString()}</span>
-              {it.source && <span className="opacity-70">{new URL(it.source).hostname.replace('www.', '')}</span>}
+              <span title={new Date(it.ts).toISOString()}>{fmtUTC(it.ts)}</span>
+              {it.source && (
+                <a href={it.source} target="_blank" rel="noreferrer" className="opacity-70 hover:underline">
+                  {(() => { try { return new URL(it.source).hostname.replace('www.', '') } catch { return it.source } })()}
+                </a>
+              )}
             </div>
           </li>
         ))}
