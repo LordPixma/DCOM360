@@ -156,7 +156,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700" aria-live="polite">
+            <div className="flex md:hidden items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700" aria-live="polite" role="status">
               {online ? (
                 <>
                   <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -169,7 +169,7 @@ export default function App() {
                 </>
               )}
             </div>
-            <div className="hidden md:block">
+            <div className="hidden md:block" role="status" aria-live="polite">
               <ApiStatus />
             </div>
             {/* Visualizations dropdown */}
