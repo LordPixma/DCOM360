@@ -1,8 +1,58 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useDisasters, type Disaster } from '@/hooks/useDisasters'
+import { useMemo } from 'react'
+import { type Disaster } from '@/hooks/useDisasters'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useDisastersWithMeta } from '@/hooks/useDisastersWithMeta'
 import { X } from 'lucide-react'
+
+function stripHtmlAndDecode(input: string): string {
+  try {
+    const div = document.createElement('div')
+    div.innerHTML = input
+    const text = (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim()
+    return text
+  } catch {
+    return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+}
+
+function extractFirstImageSrc(input: string): string | undefined {
+  const m = input.match(/<img[^>]+src=["']([^"']+)["']/i)
+  return m ? m[1] : undefined
+}
+
+function severityLabel(sev?: string): { label: string; className: string } {
+  const v = (sev || '').toLowerCase()
+  if (v === 'red') return { label: 'Critical', className: 'bg-red-100 text-red-700 border-red-200' }
+  if (v === 'yellow' || v === 'orange') return { label: 'Warning', className: 'bg-amber-100 text-amber-700 border-amber-200' }
+  return { label: 'Monitoring', className: 'bg-green-100 text-green-700 border-green-200' }
+}
+
+function prettyType(t?: string, title?: string): string {
+  const raw = (t || '').trim().toLowerCase()
+  if (!raw || raw === 'other') {
+    const tt = (title || '').toLowerCase()
+    if (tt.includes('volcano')) return 'Volcano'
+    if (tt.includes('earthquake')) return 'Earthquake'
+    if (tt.includes('flood')) return 'Flood'
+    if (tt.includes('cyclone') || tt.includes('hurricane') || tt.includes('typhoon')) return 'Cyclone'
+    if (tt.includes('wildfire') || tt.includes('bushfire')) return 'Wildfire'
+  }
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : 'Event'
+}
+
+function formatRelative(dateIso: string): string {
+  const now = Date.now()
+  const t = new Date(dateIso).getTime()
+  if (isNaN(t)) return dateIso
+  const diff = Math.max(0, Math.floor((now - t) / 1000))
+  if (diff < 60) return `${diff}s ago`
+  const m = Math.floor(diff / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
 
 export default function EventsList() {
   const navigate = useNavigate()
@@ -112,15 +162,23 @@ export default function EventsList() {
                 <li key={d.id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <div className="flex items-start gap-4">
                     <div className={`flex-shrink-0 h-3 w-3 rounded-full mt-1.5 ${dotClass(d.severity)}`}></div>
+                    {/* Optional thumbnail if embedded img src found in title */}
+                    {(() => { const src = extractFirstImageSrc(d.title); return src ? (
+                      <img src={src} alt="" className="hidden sm:block w-14 h-14 rounded-lg object-cover border border-slate-200 dark:border-slate-700" loading="lazy" />
+                    ) : null })()}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <button onClick={() => navigate(`/disaster/${d.id}`)} className="font-semibold text-left text-slate-900 dark:text-white hover:underline line-clamp-2">
-                          {d.title}
+                          {stripHtmlAndDecode(d.title)}
                         </button>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{new Date(d.occurred_at).toLocaleString()}</span>
+                        <span title={new Date(d.occurred_at).toLocaleString()} className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{formatRelative(d.occurred_at)}</span>
                       </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-400">
-                        {d.type}{d.country ? ` • ${d.country}` : ''}
+                      <div className="mt-1 flex items-center flex-wrap gap-2 text-xs">
+                        <span className="text-slate-600 dark:text-slate-400">{prettyType(d.type, d.title)}{d.country ? ` • ${d.country}` : ''}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border ${severityLabel(d.severity).className}`}>{severityLabel(d.severity).label}</span>
+                        {d.source && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide">{d.source}</span>
+                        )}
                       </div>
                     </div>
                   </div>
