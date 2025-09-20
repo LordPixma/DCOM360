@@ -190,7 +190,7 @@ export default {
     }
     // Aggregated news from external RSS feeds (cached)
     if (url.pathname === '/api/news' && request.method === 'GET') {
-      const CACHE_KEY = 'news:critical:msf+crisisgroup'
+  const CACHE_KEY = 'news:critical:msf+crisisgroup:v2'
       const cached = await cache.get(env, CACHE_KEY)
       if (cached) return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
       try {
@@ -239,9 +239,9 @@ export default {
             }
           }
         }
-        // Sort by timestamp desc and take top 20
-        items.sort((a, b) => (new Date(b.ts).getTime() - new Date(a.ts).getTime()))
-        const top = items.slice(0, 20)
+  // Sort by timestamp desc and take top 5
+  items.sort((a, b) => (new Date(b.ts).getTime() - new Date(a.ts).getTime()))
+  const top = items.slice(0, 5)
         const body: APIResponse<typeof top> = { success: true, data: top }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, CACHE_KEY, jsonStr, 600)
