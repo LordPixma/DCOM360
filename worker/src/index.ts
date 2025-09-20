@@ -1,6 +1,7 @@
 import { Env, Disaster, DisasterRow } from './types'
 import { json, mapSeverityToClient, buildCorsHeaders } from './utils'
 import { cache } from './cache'
+import { XMLParser } from 'fast-xml-parser'
 
 export interface APIResponse<T> {
   success: boolean
@@ -186,6 +187,68 @@ export default {
         data: { map_style: style, has_key: Boolean(key) }
       }
       return json(body, { headers: { ...cors, 'cache-control': 'public, max-age=300' } })
+    }
+    // Aggregated news from external RSS feeds (cached)
+    if (url.pathname === '/api/news' && request.method === 'GET') {
+      const CACHE_KEY = 'news:critical:msf+crisisgroup'
+      const cached = await cache.get(env, CACHE_KEY)
+      if (cached) return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+      try {
+        const urls = [
+          'https://www.msf.org/rss/all',
+          'https://www.crisisgroup.org/rss'
+        ]
+        const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' })
+        const responses = await Promise.all(urls.map(u => fetch(u, { cf: { cacheTtl: 600, cacheEverything: true } }).then(r => r.text())))
+        const items: Array<{ id: string; title: string; link: string; ts: string; source: string }> = []
+        const toISO = (v: any): string => {
+          try {
+            const t = Date.parse(String(v))
+            if (!isNaN(t)) return new Date(t).toISOString()
+          } catch {}
+          return new Date().toISOString()
+        }
+        for (let i = 0; i < responses.length; i++) {
+          const xml = responses[i]
+          const obj = parser.parse(xml)
+          // Try both RSS 2.0 and Atom
+          const rss = obj?.rss?.channel
+          const atom = obj?.feed
+          if (rss?.item) {
+            const arr = Array.isArray(rss.item) ? rss.item : [rss.item]
+            for (const it of arr.slice(0, 20)) {
+              items.push({
+                id: it.guid?.['#text'] || it.guid || it.link || `${urls[i]}#${it.title}`,
+                title: it.title || 'Untitled',
+                link: it.link || urls[i],
+                ts: it.pubDate ? toISO(it.pubDate) : toISO(Date.now()),
+                source: urls[i]
+              })
+            }
+          } else if (atom?.entry) {
+            const arr = Array.isArray(atom.entry) ? atom.entry : [atom.entry]
+            for (const it of arr.slice(0, 20)) {
+              const link = Array.isArray(it.link) ? it.link[0]?.href : it.link?.href || it.link
+              items.push({
+                id: it.id || link || `${urls[i]}#${it.title}`,
+                title: it.title || 'Untitled',
+                link: link || urls[i],
+                ts: it.updated ? toISO(it.updated) : (it.published ? toISO(it.published) : toISO(Date.now())),
+                source: urls[i]
+              })
+            }
+          }
+        }
+        // Sort by timestamp desc and take top 20
+        items.sort((a, b) => (new Date(b.ts).getTime() - new Date(a.ts).getTime()))
+        const top = items.slice(0, 20)
+        const body: APIResponse<typeof top> = { success: true, data: top }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, CACHE_KEY, jsonStr, 600)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
+      } catch (e: any) {
+        return json({ success: false, data: [], error: { code: 'news_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
     }
     if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
       const type = url.searchParams.get('type') || undefined

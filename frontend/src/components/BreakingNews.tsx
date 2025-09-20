@@ -1,15 +1,24 @@
 import { Radio } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { api, type APIResponse } from '@/lib/api'
 
 // Placeholder breaking news card – data source (RSS/API) to be integrated later
 export function BreakingNews() {
-  const [items, setItems] = useState<{ id: string; title: string; ts: string }[]>([])
+  const [items, setItems] = useState<{ id: string; title: string; ts: string; link?: string; source?: string }[]>([])
+  const [err, setErr] = useState<string | null>(null)
   useEffect(() => {
-    // Placeholder demo content
-    setItems([
-      { id: 'demo-1', title: 'Breaking: Prototype feed integration pending', ts: new Date().toISOString() },
-      { id: 'demo-2', title: 'Live updates will appear here soon', ts: new Date(Date.now() - 1000 * 60 * 5).toISOString() }
-    ])
+    let mounted = true
+    api.get<APIResponse<any[]>>('/api/news')
+      .then(res => {
+        if (!mounted) return
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setItems(res.data.data)
+        } else {
+          setErr('Failed to load news')
+        }
+      })
+      .catch(() => mounted && setErr('Failed to load news'))
+    return () => { mounted = false }
   }, [])
 
   return (
@@ -19,19 +28,29 @@ export function BreakingNews() {
           <Radio className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900 dark:text-white">Breaking News</h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400">High-priority global alerts</p>
+          <h3 className="font-bold text-slate-900 dark:text-white">Critical updates</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Latest reports from MSF and Crisis Group</p>
         </div>
       </div>
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+        {err && <li className="p-4 text-sm text-red-600">{err}</li>}
         {items.map(it => (
           <li key={it.id} className="p-4 text-sm">
-            <div className="font-medium text-slate-900 dark:text-white">{it.title}</div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{new Date(it.ts).toLocaleTimeString()}</div>
+            {it.link ? (
+              <a href={it.link} target="_blank" rel="noreferrer" className="font-medium text-slate-900 dark:text-white hover:underline">
+                {it.title}
+              </a>
+            ) : (
+              <div className="font-medium text-slate-900 dark:text-white">{it.title}</div>
+            )}
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
+              <span>{new Date(it.ts).toLocaleString()}</span>
+              {it.source && <span className="opacity-70">{new URL(it.source).hostname.replace('www.', '')}</span>}
+            </div>
           </li>
         ))}
         {items.length === 0 && (
-          <li className="p-4 text-sm text-slate-500 dark:text-slate-400">No breaking news yet.</li>
+          <li className="p-4 text-sm text-slate-500 dark:text-slate-400">No updates yet.</li>
         )}
       </ul>
     </div>
