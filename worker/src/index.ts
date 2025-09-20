@@ -177,6 +177,16 @@ export default {
       const body = `# HELP app_info Basic info\n# TYPE app_info gauge\napp_info{env="${env.ENV_ORIGIN || 'unknown'}"} 1`
       return new Response(body, { headers: { 'content-type': 'text/plain; version=0.0.4' } })
     }
+    // Public config for frontend: return map style URL if key is configured server-side via Pages/Worker var
+    if (url.pathname === '/api/config' && request.method === 'GET') {
+      const key = (env as any).VITE_MAPTILER_KEY || (env as any).MAPTILER_KEY || ''
+      const style = key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : ''
+      const body: APIResponse<{ map_style: string; has_key: boolean }> = {
+        success: true,
+        data: { map_style: style, has_key: Boolean(key) }
+      }
+      return json(body, { headers: { ...cors, 'cache-control': 'public, max-age=300' } })
+    }
     if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
       const type = url.searchParams.get('type') || undefined
       const severity = url.searchParams.get('severity') || undefined

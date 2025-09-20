@@ -61,6 +61,16 @@ jobs:
       - name: Install dependencies (worker)
         working-directory: worker
         run: npm ci --no-audit --no-fund
+      - name: Set MAPTILER_KEY secret (production)
+        working-directory: worker
+        env:
+          VITE_MAPTILER_KEY: ${{ secrets.VITE_MAPTILER_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${VITE_MAPTILER_KEY:?Missing VITE_MAPTILER_KEY GitHub secret}"
+          printf "%s" "$VITE_MAPTILER_KEY" | npx wrangler@4 secret put MAPTILER_KEY --env production
       - name: Deploy worker
         working-directory: worker
         run: npx wrangler@4 deploy --env production
@@ -106,6 +116,12 @@ jobs:
           code=$(curl -s -o health.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/health")
           test "$code" = "200"
           grep -q '"success":\s*true' health.json
+      - name: Check /api/config has map key
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o cfg.json -w "%{http_code}" "${{ steps.prep.outputs.api_url }}/api/config")
+          test "$code" = "200"
+          jq -e '.success == true and .data.has_key == true and (.data.map_style | length > 0)' cfg.json >/dev/null
       - name: Check /api/disasters/summary
         run: |
           set -euo pipefail

@@ -3,11 +3,13 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useConfig } from '@/hooks/useConfig'
 
 // Simple heatmap view using MapLibre + a GeoJSON source from /api/disasters/history
 export function HeatmapView() {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const { data: cfg } = useConfig()
   const { data } = useQuery({
     queryKey: ['history-heatmap', 30],
     queryFn: async () => {
@@ -19,8 +21,7 @@ export function HeatmapView() {
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
-    const key = (import.meta.env.VITE_MAPTILER_KEY as string | undefined) || ''
-    const style = key ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : undefined
+    const style = cfg?.map_style || undefined
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,
@@ -28,7 +29,7 @@ export function HeatmapView() {
       zoom: 1.5,
       attributionControl: false
     })
-  }, [])
+  }, [cfg?.map_style])
 
   useEffect(() => {
     const map = mapRef.current

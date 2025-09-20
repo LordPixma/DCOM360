@@ -4,12 +4,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useAppStore } from '@/store/appStore'
 import { Map, Layers, ZoomIn } from 'lucide-react'
+import { useConfig } from '@/hooks/useConfig'
 
-// MapTiler API key and style for MapLibre
-const MAPTILER_KEY = (import.meta.env.VITE_MAPTILER_KEY as string | undefined) || ''
-const MAP_STYLE = MAPTILER_KEY
-  ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`
-  : ''
+// Runtime map style provided by backend config
 
 export function DisasterMap() {
   const filters = useAppStore((s) => s.filters)
@@ -17,13 +14,15 @@ export function DisasterMap() {
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const { data, isLoading } = useDisasters({ limit: 200, ...filters })
+  const { data: cfg } = useConfig()
 
   // Initialize map once
   useEffect(() => {
-    if (!containerRef.current || mapRef.current || !MAP_STYLE) return
+    if (!containerRef.current || mapRef.current) return
+    const style = cfg?.map_style || undefined
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
-      style: MAP_STYLE,
+      style,
       center: [0, 20],
       zoom: 1.3,
       attributionControl: false
@@ -32,7 +31,15 @@ export function DisasterMap() {
     // Add custom controls
     mapRef.current.addControl(new maplibregl.NavigationControl(), 'top-right')
     mapRef.current.addControl(new maplibregl.FullscreenControl(), 'top-right')
-  }, [])
+  }, [cfg?.map_style])
+
+  // If map already initialized but style arrives later, apply it
+  useEffect(() => {
+    const map = mapRef.current
+    if (map && cfg?.map_style) {
+      try { map.setStyle(cfg.map_style) } catch {}
+    }
+  }, [cfg?.map_style])
 
   // Render markers when data changes
   useEffect(() => {
@@ -100,7 +107,7 @@ export function DisasterMap() {
   return (
     <div className="relative w-full border-b border-slate-200 dark:border-slate-700">
       <div ref={containerRef} className="h-[48vh] min-h-[320px] sm:h-[56vh] sm:min-h-[420px] w-full" />
-  {!MAP_STYLE && (
+  {!cfg?.map_style && (
         <div className="absolute inset-0 bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
           <div className="text-center">
             <Map className="h-12 w-12 text-slate-400 mx-auto mb-3" />
