@@ -33,14 +33,15 @@ export function RecentDisasters() {
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden">
       <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
             <Clock className="h-5 w-5 text-white" />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h3 className="font-bold text-slate-900 dark:text-white">Recent Events</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">Latest disaster updates</p>
           </div>
+          <button onClick={() => navigate('/events')} className="text-xs text-blue-600 hover:underline">View all</button>
         </div>
       </div>
 

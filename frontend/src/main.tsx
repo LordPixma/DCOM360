@@ -13,6 +13,7 @@ const PredictiveAnalytics = lazy(() => import('@/visualizations/PredictiveAnalyt
 const ComparativeAnalysis = lazy(() => import('@/visualizations/ComparativeAnalysis').then(m => ({ default: m.ComparativeAnalysis })))
 const HistoricalTrends = lazy(() => import('@/visualizations/HistoricalTrends').then(m => ({ default: m.HistoricalTrends })))
 const DisasterDetail = lazy(() => import('@/components/DisasterDetail').then(m => ({ default: m.DisasterDetail })))
+const EventsList = lazy(() => import('@/components/EventsList'))
 import './index.css'
 // Register PWA service worker (auto-update)
 // eslint-disable-next-line import/no-unresolved
@@ -37,6 +38,7 @@ root.render(
             <Route path="/viz/predict" element={<PredictiveAnalytics />} />
             <Route path="/viz/compare" element={<ComparativeAnalysis />} />
             <Route path="/viz/trends" element={<HistoricalTrends />} />
+            <Route path="/events" element={<EventsList />} />
             <Route path="/disaster/:id" element={<DisasterDetail />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
