@@ -1,6 +1,8 @@
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useDisaster } from '@/hooks/useDisaster'
 import { ArrowLeft, ExternalLink, MapPin, Globe2, AlertTriangle, Activity } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useEarthquakeReport } from '@/hooks/useEarthquakeReport'
 
 function stripHtmlAndDecode(input?: string): string {
   const text = String(input || '')
@@ -113,6 +115,16 @@ export function DisasterDetail() {
   const sanitizedTitle = stripHtmlAndDecode(data?.title)
   const images = extractImageSrcs(data?.title, 3)
   const parsed = isEqReport ? parseEarthquakeReport(data?.title) : undefined
+  const [expanded, setExpanded] = useState<boolean>(false)
+  useEffect(() => {
+    // Default collapsed on small screens
+    if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) {
+      setExpanded(false)
+    } else {
+      setExpanded(true)
+    }
+  }, [id])
+  const { data: enriched, isLoading: enrichLoading } = useEarthquakeReport(isEqReport ? id : undefined)
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -262,17 +274,39 @@ export function DisasterDetail() {
                   {/* Top Largest Quakes */}
                   {parsed?.top && parsed.top.length > 0 && (
                     <div className="mb-6">
-                      <h3 className="text-lg font-semibold mb-3">Top 10 Largest Earthquakes (Past 24 Hours)</h3>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <h3 className="text-lg font-semibold">Top 10 Largest Earthquakes (Past 24 Hours)</h3>
+                        <button
+                          onClick={() => setExpanded(v => !v)}
+                          className="text-sm px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          aria-expanded={expanded}
+                          aria-controls="eq-top-list"
+                        >
+                          {expanded ? 'Collapse' : 'Expand'}
+                        </button>
+                      </div>
+                      {!expanded && (
+                        <div className="text-xs text-slate-600 dark:text-slate-400">Summary hidden on small screens. Tap “Expand” to view details.</div>
+                      )}
                       {/* Group >=5.9 as red */}
-                      {parsed.top.filter(q => q.mag >= 5.9).length > 0 && (
+                      {expanded && parsed.top.filter(q => q.mag >= 5.9).length > 0 && (
                         <div className="mb-4">
                           <h4 className="font-semibold mb-2">🔴 Magnitude 5.9 Earthquakes</h4>
                           <ul className="space-y-2 text-sm">
                             {parsed.top.filter(q => q.mag >= 5.9).map(q => (
                               <li key={`r-${q.rank}`} className="leading-snug">
                                 <div className="font-medium">#{q.rank}: M{q.mag.toFixed(1)} - {q.title}</div>
-                                {typeof q.felt === 'number' && (
-                                  <div className="text-slate-600 dark:text-slate-400">Reports: {q.felt} felt reports</div>
+                                {/* Enriched details if available */}
+            {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
+                                  <div className="text-slate-600 dark:text-slate-400">
+                                    {(() => {
+                                      const e = enriched!.top!.find(e => e.rank === q.rank)!
+              const where = e.location || e.region || e.country ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}` : ''
+              const local = e.local_time ? `Time: ${e.local_time}` : ''
+              const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
+              return [where, local, felt].filter(Boolean).join(' • ')
+                                    })()}
+                                  </div>
                                 )}
                               </li>
                             ))}
@@ -280,20 +314,31 @@ export function DisasterDetail() {
                         </div>
                       )}
                       {/* Group 5.0–5.8 */}
-                      {parsed.top.filter(q => q.mag >= 5 && q.mag < 5.9).length > 0 && (
+                      {expanded && parsed.top.filter(q => q.mag >= 5 && q.mag < 5.9).length > 0 && (
                         <div className="mb-2">
                           <h4 className="font-semibold mb-2">🟠 Magnitude 5.0–5.8 Earthquakes</h4>
                           <ul className="space-y-2 text-sm">
                             {parsed.top.filter(q => q.mag >= 5 && q.mag < 5.9).map(q => (
                               <li key={`o-${q.rank}`} className="leading-snug">
                                 <div className="font-medium">#{q.rank}: M{q.mag.toFixed(1)} - {q.title}</div>
-                                {typeof q.felt === 'number' && (
-                                  <div className="text-slate-600 dark:text-slate-400">Reports: {q.felt} felt reports</div>
+            {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
+                                  <div className="text-slate-600 dark:text-slate-400">
+                                    {(() => {
+                                      const e = enriched!.top!.find(e => e.rank === q.rank)!
+              const where = e.location || e.region || e.country ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}` : ''
+              const local = e.local_time ? `Time: ${e.local_time}` : ''
+              const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
+              return [where, local, felt].filter(Boolean).join(' • ')
+                                    })()}
+                                  </div>
                                 )}
                               </li>
                             ))}
                           </ul>
                         </div>
+                      )}
+                      {expanded && enrichLoading && (
+                        <div className="text-xs text-slate-500">Loading details…</div>
                       )}
                     </div>
                   )}

@@ -2,6 +2,75 @@ import { Env, Disaster, DisasterRow } from './types'
 import { json, mapSeverityToClient, buildCorsHeaders, sanitizeText } from './utils'
 import { cache } from './cache'
 import { XMLParser } from 'fast-xml-parser'
+// Helper: parse World Earthquake Report HTML for totals and top items
+function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }, top?: Array<{ rank: number; mag: number; title: string; url?: string }> } {
+  const res: any = {}
+  try {
+    const safe = String(html || '')
+    const sumMatch = safe.match(/Summary:\s*([^<]+)/i)
+    if (sumMatch) {
+      const s = sumMatch[1]
+      const m5 = s.match(/(\d+)\s+quakes?\s+5(?:\.[0-9])?\+/i)
+      const m4 = s.match(/(\d+)\s+quakes?\s+4(?:\.[0-9])?\+/i)
+      const m3 = s.match(/(\d+)\s+quakes?\s+3(?:\.[0-9])?\+/i)
+      const m2 = s.match(/(\d+)\s+quakes?\s+2(?:\.[0-9])?\+/i)
+      const total = s.match(/\((\d+)\s+total\)/i)
+      res.totals = {
+        total: total ? Number(total[1]) : undefined,
+        m5: m5 ? Number(m5[1]) : undefined,
+        m4: m4 ? Number(m4[1]) : undefined,
+        m3: m3 ? Number(m3[1]) : undefined,
+        m2: m2 ? Number(m2[1]) : undefined,
+      }
+    }
+    const top: Array<{ rank: number; mag: number; title: string; url?: string }> = []
+    const re1 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
+    let m: RegExpExecArray | null
+    while ((m = re1.exec(safe)) && top.length < 10) {
+      top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
+    }
+    if (top.length) res.top = top.sort((a, b) => a.rank - b.rank)
+  } catch {}
+  return res
+}
+
+async function enrichEqItem(env: Env, url: string): Promise<{ felt?: number; local_time_line?: string; page_title?: string; location_line?: string; region?: string; country?: string; lat?: number; lon?: number } | null> {
+  const key = `eq:detail:${url}`
+  const cached = await cache.get(env, key)
+  if (cached) {
+    try { return JSON.parse(cached) } catch { /* ignore */ }
+  }
+  try {
+    const resp = await fetch(url, { cf: { cacheTtl: 1800, cacheEverything: true } })
+    if (!resp.ok) throw new Error(`fetch ${resp.status}`)
+    const html = await resp.text()
+    const out: { felt?: number; local_time_line?: string; page_title?: string; location_line?: string; region?: string; country?: string; lat?: number; lon?: number } = {}
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    if (titleMatch) out.page_title = titleMatch[1].trim()
+    const feltMatch = html.match(/(\d+)\s+felt\s+reports?/i)
+    if (feltMatch) out.felt = Number(feltMatch[1])
+    const localMatch = html.match(/(?:Local\s*time|Time)\s*:?\s*([^<\n]+?(?:GMT|UTC)[^<\n]*)/i)
+    if (localMatch) out.local_time_line = localMatch[1].trim()
+    // Location/Region line heuristics
+    const locLabel = html.match(/(?:Location|Place|Epicenter)\s*:?\s*([^<\n]+)/i)
+    if (locLabel) out.location_line = locLabel[1].trim()
+    // Region/Country extraction from title or location line
+    const regionMatch = (out.location_line || out.page_title || '').match(/([A-Z][A-Za-z\-\s]+)(?:,\s*([A-Z][A-Za-z\-\s]+))?$/)
+    if (regionMatch) {
+      out.region = (regionMatch[2] ? regionMatch[1] : regionMatch[1])?.trim()
+      out.country = (regionMatch[2] ? regionMatch[2] : undefined)?.trim()
+    }
+    // Lat/Lon if present
+    const latMatch = html.match(/(?:Lat(?:itude)?)[^\d\-]*([\-\d\.]+)/i)
+    const lonMatch = html.match(/(?:Lon(?:gitude)?)[^\d\-]*([\-\d\.]+)/i)
+    if (latMatch) { const v = Number(latMatch[1]); if (isFinite(v)) out.lat = v }
+    if (lonMatch) { const v = Number(lonMatch[1]); if (isFinite(v)) out.lon = v }
+    await cache.put(env, key, JSON.stringify(out), 43200) // 12h
+    return out
+  } catch {
+    return null
+  }
+}
 
 export interface APIResponse<T> {
   success: boolean
@@ -248,6 +317,25 @@ export default {
         return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
       } catch (e: any) {
         return json({ success: false, data: [], error: { code: 'news_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+    // Enriched Earthquake Report for a given disaster id
+    if (url.pathname.startsWith('/api/disasters/') && url.pathname.endsWith('/eq-report') && request.method === 'GET') {
+      const id = url.pathname.split('/').slice(-2, -1)[0]
+      try {
+        if (!env.DB) throw new Error('DB not bound')
+        const row = await env.DB.prepare('SELECT id, title FROM disasters WHERE id = ? OR external_id = ? LIMIT 1').bind(id, id).first<{ id: number; title: string }>()
+        if (!row) return json({ success: false, data: null, error: { code: 'not_found', message: 'Disaster not found' } }, { status: 404, headers: { ...cors } })
+        const parsed = parseEqReportHtml(row.title)
+        const top = parsed.top || []
+        const enriched = await Promise.all(top.map(async it => {
+          if (!it.url) return it
+          const extra = await enrichEqItem(env, it.url)
+          return { ...it, felt: extra?.felt, local_time: extra?.local_time_line, page_title: extra?.page_title, location: extra?.location_line, region: extra?.region, country: extra?.country, lat: extra?.lat, lon: extra?.lon }
+        }))
+        return json({ success: true, data: { totals: parsed.totals, top: enriched } }, { headers: { ...cors, 'cache-control': 'public, max-age=600' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'server_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
       }
     }
   if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
