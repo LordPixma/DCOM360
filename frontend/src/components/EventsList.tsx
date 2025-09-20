@@ -5,18 +5,26 @@ import { useDisastersWithMeta } from '@/hooks/useDisastersWithMeta'
 import { ExternalLink, X } from 'lucide-react'
 
 function stripHtmlAndDecode(input: string): string {
-  try {
-    const div = document.createElement('div')
-    div.innerHTML = input
-    const text = (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim()
-    return text
-  } catch {
-    return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  const text = String(input || '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  // Basic HTML entity decode for common entities
+  const entities: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' '
   }
+  return text.replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (m) => entities[m] || m)
 }
 
 function extractFirstImageSrc(input: string): string | undefined {
-  const m = input.match(/<img[^>]+src=["']([^"']+)["']/i)
+  const m = String(input || '').match(/<img[^>]+src=["']([^"']+)["']/i)
   return m ? m[1] : undefined
 }
 
@@ -59,14 +67,15 @@ type QuakeEntry = { rank: number; mag: number; title: string; url?: string }
 function parseEarthquakeReport(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }; top?: QuakeEntry[] } {
   const res: { totals?: any; top?: QuakeEntry[] } = {}
   try {
+    const safe = String(html || '')
     // Totals: "Summary: 15 quakes 5.0+, 59 quakes 4.0+, 117 quakes 3.0+, 285 quakes 2.0+ (476 total)"
-    const sumMatch = html.match(/Summary:\s*([^<]+)/i)
+    const sumMatch = safe.match(/Summary:\s*([^<]+)/i)
     if (sumMatch) {
       const s = sumMatch[1]
-      const m5 = s.match(/(\d+)\s+quakes?\s+5\.[0-9]?\+/i)
-      const m4 = s.match(/(\d+)\s+quakes?\s+4\.[0-9]?\+/i)
-      const m3 = s.match(/(\d+)\s+quakes?\s+3\.[0-9]?\+/i)
-      const m2 = s.match(/(\d+)\s+quakes?\s+2\.[0-9]?\+/i)
+      const m5 = s.match(/(\d+)\s+quakes?\s+5(?:\.[0-9])?\+/i)
+      const m4 = s.match(/(\d+)\s+quakes?\s+4(?:\.[0-9])?\+/i)
+      const m3 = s.match(/(\d+)\s+quakes?\s+3(?:\.[0-9])?\+/i)
+      const m2 = s.match(/(\d+)\s+quakes?\s+2(?:\.[0-9])?\+/i)
       const total = s.match(/\((\d+)\s+total\)/i)
       res.totals = {
         total: total ? Number(total[1]) : undefined,
@@ -79,8 +88,8 @@ function parseEarthquakeReport(html: string): { totals?: { total?: number; m5?: 
     // Top quakes: patterns "#1: Mag 5.9 <a href="...">Location</a>"
     const top: QuakeEntry[] = []
     const re = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
-    let m
-    while ((m = re.exec(html)) && top.length < 5) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(safe)) && top.length < 5) {
       top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
     }
     if (top.length) res.top = top
