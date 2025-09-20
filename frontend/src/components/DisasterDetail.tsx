@@ -297,16 +297,35 @@ export function DisasterDetail() {
                               <li key={`r-${q.rank}`} className="leading-snug">
                                 <div className="font-medium">#{q.rank}: M{q.mag.toFixed(1)} - {q.title}</div>
                                 {/* Enriched details if available */}
-            {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
-                                  <div className="text-slate-600 dark:text-slate-400">
-                                    {(() => {
-                                      const e = enriched!.top!.find(e => e.rank === q.rank)!
-              const where = e.location || e.region || e.country ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}` : ''
-              const local = e.local_time ? `Time: ${e.local_time}` : ''
-              const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
-              return [where, local, felt].filter(Boolean).join(' • ')
-                                    })()}
-                                  </div>
+                                {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
+                                  (() => {
+                                    const e = enriched!.top!.find(e => e.rank === q.rank)!
+                                    const where = e.location || e.region || e.country
+                                      ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}`
+                                      : ''
+                                    const local = e.local_time ? `Time: ${e.local_time}` : ''
+                                    const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
+                                    const parts = [where, local, felt].filter(Boolean)
+                                    const map = (typeof e.lat === 'number' && typeof e.lon === 'number')
+                                      ? (
+                                        <a
+                                          key="map"
+                                          href={`https://www.openstreetmap.org/?mlat=${e.lat}&mlon=${e.lon}#map=7/${e.lat}/${e.lon}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                          View on map <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      ) : null
+                                    return (
+                                      <div className="text-slate-600 dark:text-slate-400">
+                                        {parts.join(' • ')}
+                                        {map && (parts.length ? ' • ' : null)}
+                                        {map}
+                                      </div>
+                                    )
+                                  })()
                                 )}
                               </li>
                             ))}
@@ -321,16 +340,35 @@ export function DisasterDetail() {
                             {parsed.top.filter(q => q.mag >= 5 && q.mag < 5.9).map(q => (
                               <li key={`o-${q.rank}`} className="leading-snug">
                                 <div className="font-medium">#{q.rank}: M{q.mag.toFixed(1)} - {q.title}</div>
-            {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
-                                  <div className="text-slate-600 dark:text-slate-400">
-                                    {(() => {
-                                      const e = enriched!.top!.find(e => e.rank === q.rank)!
-              const where = e.location || e.region || e.country ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}` : ''
-              const local = e.local_time ? `Time: ${e.local_time}` : ''
-              const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
-              return [where, local, felt].filter(Boolean).join(' • ')
-                                    })()}
-                                  </div>
+                                {enriched && enriched.top && enriched.top.find(e => e.rank === q.rank) && (
+                                  (() => {
+                                    const e = enriched!.top!.find(e => e.rank === q.rank)!
+                                    const where = e.location || e.region || e.country
+                                      ? `Location: ${[e.location || null, e.region || null, e.country || null].filter(Boolean)[0]}`
+                                      : ''
+                                    const local = e.local_time ? `Time: ${e.local_time}` : ''
+                                    const felt = typeof e.felt === 'number' ? `Reports: ${e.felt} felt reports` : ''
+                                    const parts = [where, local, felt].filter(Boolean)
+                                    const map = (typeof e.lat === 'number' && typeof e.lon === 'number')
+                                      ? (
+                                        <a
+                                          key="map"
+                                          href={`https://www.openstreetmap.org/?mlat=${e.lat}&mlon=${e.lon}#map=7/${e.lat}/${e.lon}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                          View on map <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      ) : null
+                                    return (
+                                      <div className="text-slate-600 dark:text-slate-400">
+                                        {parts.join(' • ')}
+                                        {map && (parts.length ? ' • ' : null)}
+                                        {map}
+                                      </div>
+                                    )
+                                  })()
                                 )}
                               </li>
                             ))}
