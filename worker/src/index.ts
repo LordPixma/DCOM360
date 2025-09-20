@@ -250,7 +250,7 @@ export default {
         return json({ success: false, data: [], error: { code: 'news_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
       }
     }
-    if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
+  if (url.pathname === '/api/disasters/current' && request.method === 'GET') {
       const type = url.searchParams.get('type') || undefined
       const severity = url.searchParams.get('severity') || undefined
       const country = url.searchParams.get('country') || undefined
@@ -265,18 +265,23 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-  let sql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp
-                   FROM disasters WHERE is_active = 1`
+        // Build filter SQL and params once to share between count and page queries
+        let baseWhere = `FROM disasters WHERE is_active = 1`
         const params: any[] = []
-        if (type) { sql += ` AND disaster_type = ?`; params.push(type) }
-        if (severity) { sql += ` AND severity = ?`; params.push(severity.toUpperCase()) }
-        if (country) { sql += ` AND country = ?`; params.push(country) }
-  if (q) { sql += ` AND (title LIKE ? OR country LIKE ?)`; const pat = `%${q}%`; params.push(pat, pat) }
-        sql += ` ORDER BY event_timestamp DESC LIMIT ? OFFSET ?`
-        params.push(limit, offset)
+        if (type) { baseWhere += ` AND disaster_type = ?`; params.push(type) }
+        if (severity) { baseWhere += ` AND severity = ?`; params.push(severity.toUpperCase()) }
+        if (country) { baseWhere += ` AND country = ?`; params.push(country) }
+        if (q) { baseWhere += ` AND (title LIKE ? OR country LIKE ?)`; const pat = `%${q}%`; params.push(pat, pat) }
 
-        const stmt = env.DB.prepare(sql)
-        const rows = await stmt.bind(...params).all<DisasterRow>()
+        // Total count for the current filters
+        const countSql = `SELECT COUNT(*) as total ${baseWhere}`
+        const countRow = await env.DB.prepare(countSql).bind(...params).first<{ total: number }>()
+        const total = countRow?.total ?? 0
+
+        // Paged query
+        const pageSql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp ${baseWhere} ORDER BY event_timestamp DESC LIMIT ? OFFSET ?`
+        const pageParams = [...params, limit, offset]
+        const rows = await env.DB.prepare(pageSql).bind(...pageParams).all<DisasterRow>()
         const items: Disaster[] = rows.results.map(r => ({
           id: String(r.id),
           type: r.disaster_type,
@@ -288,7 +293,7 @@ export default {
           occurred_at: r.event_timestamp,
           source: r.external_id?.startsWith('gdacs:') ? 'gdacs' : r.external_id?.startsWith('reliefweb:') ? 'reliefweb' : undefined,
         }))
-  const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset } }
+  const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset, total } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
   return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
@@ -298,7 +303,7 @@ export default {
         if (type) items = items.filter(d => d.type === type)
         if (severity) items = items.filter(d => d.severity === severity)
         if (country) items = items.filter(d => d.country === country)
-    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset, fallback: true } }
+    const body: APIResponse<Disaster[]> = { success: true, data: items, meta: { limit, offset, total: items.length, fallback: true } }
   return json(body, { headers: { ...cors } })
       }
     }
