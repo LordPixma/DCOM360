@@ -7,27 +7,14 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 
 export function RecentDisasters() {
   const filters = useAppStore((s) => s.filters)
-  const [offset, setOffset] = useState(0)
   const [items, setItems] = useState<Disaster[]>([])
-  const loaderRef = useRef<HTMLDivElement | null>(null)
   const parentRef = useRef<HTMLDivElement | null>(null)
-  const { data, isLoading } = useDisasters({ limit: 20, offset, ...filters })
+  const { data, isLoading } = useDisasters({ limit: 5, offset: 0, ...filters })
   const navigate = useNavigate()
   const targetId = useMemo(() => new URLSearchParams(window.location.search).get('disasterId'), [])
 
-  useEffect(() => { setItems([]); setOffset(0) }, [filters.country, filters.severity, filters.type])
-  useEffect(() => { if (data && data.length) setItems(prev => [...prev, ...data]) }, [data])
-  useEffect(() => {
-    const el = loaderRef.current
-    if (!el) return
-    const ob = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && !isLoading && (data?.length || 0) >= 20) {
-        setOffset(o => o + 20)
-      }
-    }, { rootMargin: '200px' })
-    ob.observe(el)
-    return () => ob.disconnect()
-  }, [isLoading, data])
+  useEffect(() => { setItems([]) }, [filters.country, filters.severity, filters.type])
+  useEffect(() => { if (data && data.length) setItems(data) }, [data])
 
   const rowVirtualizer = useVirtualizer({
     count: items.length,
@@ -112,7 +99,7 @@ export function RecentDisasters() {
             </ul>
           </div>
         )}
-        <div ref={loaderRef} className="p-2 text-center text-xs text-slate-500">{isLoading ? 'Loading…' : ' '}</div>
+  {/* Pagination removed; limiting to 5 items */}
       </div>
     </div>
   )
