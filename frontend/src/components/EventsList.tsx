@@ -1,28 +1,65 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDisasters, type Disaster } from '@/hooks/useDisasters'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useCountries } from '@/hooks/useCountries'
 
 export default function EventsList() {
   const navigate = useNavigate()
   const [sp, setSp] = useSearchParams()
   const page = Math.max(parseInt(sp.get('page') || '1', 10), 1)
-  const q = sp.get('q') || ''
-  const type = sp.get('type') || ''
-  const severity = sp.get('severity') || ''
-  const country = sp.get('country') || ''
+  const [q, setQ] = useState(sp.get('q') || '')
+  const [type, setType] = useState(sp.get('type') || '')
+  const [severity, setSeverity] = useState(sp.get('severity') || '')
+  const [country, setCountry] = useState(sp.get('country') || '')
   const limit = 20
   const offset = (page - 1) * limit
 
   const { data, isLoading } = useDisasters({ q, type, severity, country, limit, offset })
   const [items, setItems] = useState<Disaster[]>([])
-  useEffect(() => { setItems(data || []) }, [data])
-
-  const setParam = (k: string, v: string) => {
+  const loaderRef = useRef<HTMLDivElement | null>(null)
+  const [autoPage, setAutoPage] = useState(page)
+  // Reset on filter changes
+  useEffect(() => {
+    setItems([])
+    setAutoPage(1)
     const next = new URLSearchParams(sp)
-    if (v) next.set(k, v); else next.delete(k)
-    if (k !== 'page') next.set('page', '1')
+    if (q) next.set('q', q); else next.delete('q')
+    if (type) next.set('type', type); else next.delete('type')
+    if (severity) next.set('severity', severity); else next.delete('severity')
+    if (country) next.set('country', country); else next.delete('country')
+    next.set('page', '1')
     setSp(next, { replace: true })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, type, severity, country])
+  // Append data as pages load
+  useEffect(() => {
+    if (data && data.length) {
+      setItems(prev => (autoPage === 1 ? data : [...prev, ...data]))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const el = loaderRef.current
+    if (!el) return
+    const ob = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !isLoading && (data?.length || 0) >= limit) {
+        const nextPage = autoPage + 1
+        setAutoPage(nextPage)
+        const next = new URLSearchParams(sp)
+        next.set('page', String(nextPage))
+        setSp(next, { replace: true })
+      }
+    }, { rootMargin: '200px' })
+    ob.observe(el)
+    return () => ob.disconnect()
+  }, [isLoading, data, limit, autoPage, sp, setSp])
+
+  const { data: countries } = useCountries()
+  const countryOptions = useMemo(() => [
+    { value: '', label: 'All countries' },
+    ...(countries || []).map(c => ({ value: c.code, label: c.name }))
+  ], [countries])
 
   const dotClass = (sev?: string) => {
     const v = (sev || '').toLowerCase()
@@ -39,11 +76,28 @@ export default function EventsList() {
           <button onClick={() => navigate('/')} className="text-sm text-blue-600 hover:underline">Back</button>
         </div>
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 mb-4">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <input value={q} onChange={(e) => setParam('q', e.target.value)} placeholder="Search" className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm" />
-            <input value={type} onChange={(e) => setParam('type', e.target.value)} placeholder="Type (earthquake, flood...)" className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm" />
-            <input value={severity} onChange={(e) => setParam('severity', e.target.value)} placeholder="Severity (red, yellow, green)" className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm" />
-            <input value={country} onChange={(e) => setParam('country', e.target.value)} placeholder="Country code (US, NG, ...)" className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm" />
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent text-sm" />
+            <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm">
+              <option value="">All types</option>
+              <option value="earthquake">Earthquake</option>
+              <option value="flood">Flood</option>
+              <option value="wildfire">Wildfire</option>
+              <option value="cyclone">Cyclone</option>
+              <option value="volcano">Volcano</option>
+            </select>
+            <select value={severity} onChange={(e) => setSeverity(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm">
+              <option value="">All severities</option>
+              <option value="red">Critical</option>
+              <option value="yellow">Warning</option>
+              <option value="green">Monitoring</option>
+            </select>
+            <select value={country} onChange={(e) => setCountry(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm">
+              {countryOptions.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <button onClick={() => { setQ(''); setType(''); setSeverity(''); setCountry('') }} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">Clear</button>
           </div>
         </div>
 
@@ -76,11 +130,7 @@ export default function EventsList() {
           )}
         </div>
 
-        <div className="flex items-center justify-between mt-4">
-          <button disabled={page<=1} onClick={() => setParam('page', String(page-1))} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm disabled:opacity-50">Prev</button>
-          <div className="text-xs text-slate-500">Page {page}</div>
-          <button disabled={(items?.length||0) < limit} onClick={() => setParam('page', String(page+1))} className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm disabled:opacity-50">Next</button>
-        </div>
+  <div ref={loaderRef} className="py-6 text-center text-sm text-slate-500">{isLoading ? 'Loading…' : ' '}</div>
       </div>
     </div>
   )
