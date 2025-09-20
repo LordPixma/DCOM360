@@ -245,11 +245,13 @@ export default function App() {
                   <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{authed ? adminEmail : 'Not signed in'}</div>
                   <div className="border-t border-slate-200 dark:border-slate-700" />
                   <button
-                    disabled
-                    className="w-full text-left px-3 py-2 text-sm text-slate-400 cursor-not-allowed"
-                    title="Coming soon"
+                    onClick={() => {
+                      setProfileOpen(false)
+                      window.dispatchEvent(new Event('flare360:open-alert-settings'))
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   >
-                    Profile (soon)
+                    Alert Settings
                   </button>
                   <Link onClick={() => setProfileOpen(false)} to="/admin" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Admin Dashboard</Link>
                   {authed ? (

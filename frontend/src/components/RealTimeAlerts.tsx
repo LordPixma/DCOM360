@@ -51,6 +51,21 @@ export const RealTimeAlerts: React.FC = () => {
     limit: 50
   });
 
+  // Allow opening settings from outside via custom events
+  useEffect(() => {
+    const open = () => setShowSettings(true);
+    const toggle = () => setShowSettings((s) => !s);
+    const close = () => setShowSettings(false);
+    window.addEventListener('flare360:open-alert-settings', open as EventListener);
+    window.addEventListener('flare360:toggle-alert-settings', toggle as EventListener);
+    window.addEventListener('flare360:close-alert-settings', close as EventListener);
+    return () => {
+      window.removeEventListener('flare360:open-alert-settings', open as EventListener);
+      window.removeEventListener('flare360:toggle-alert-settings', toggle as EventListener);
+      window.removeEventListener('flare360:close-alert-settings', close as EventListener);
+    };
+  }, []);
+
   // Monitor for new disasters
   useEffect(() => {
     if (!disasters || isLoading) return;
@@ -192,26 +207,7 @@ export const RealTimeAlerts: React.FC = () => {
 
   return (
     <>
-      {/* Alert Bell Icon */}
-      <div className="fixed top-4 right-4 z-50">
-        <motion.button
-          onClick={() => setShowSettings(!showSettings)}
-          className="relative p-3 bg-white dark:bg-slate-800 rounded-full shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Bell className={`w-6 h-6 ${preferences.enabled ? 'text-blue-600' : 'text-slate-400'}`} />
-          {unreadCount > 0 && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold"
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </motion.div>
-          )}
-        </motion.button>
-      </div>
+  {/* Settings opened via menu item; floating bell removed per request */}
 
       {/* Settings Panel */}
       <AnimatePresence>
