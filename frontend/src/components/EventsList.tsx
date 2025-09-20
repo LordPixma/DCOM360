@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { type Disaster } from '@/hooks/useDisasters'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useDisastersWithMeta } from '@/hooks/useDisastersWithMeta'
-import { X } from 'lucide-react'
+import { ExternalLink, X } from 'lucide-react'
 
 function stripHtmlAndDecode(input: string): string {
   try {
@@ -52,6 +52,40 @@ function formatRelative(dateIso: string): string {
   if (h < 24) return `${h}h ago`
   const d = Math.floor(h / 24)
   return `${d}d ago`
+}
+
+type QuakeEntry = { rank: number; mag: number; title: string; url?: string }
+
+function parseEarthquakeReport(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }; top?: QuakeEntry[] } {
+  const res: { totals?: any; top?: QuakeEntry[] } = {}
+  try {
+    // Totals: "Summary: 15 quakes 5.0+, 59 quakes 4.0+, 117 quakes 3.0+, 285 quakes 2.0+ (476 total)"
+    const sumMatch = html.match(/Summary:\s*([^<]+)/i)
+    if (sumMatch) {
+      const s = sumMatch[1]
+      const m5 = s.match(/(\d+)\s+quakes?\s+5\.[0-9]?\+/i)
+      const m4 = s.match(/(\d+)\s+quakes?\s+4\.[0-9]?\+/i)
+      const m3 = s.match(/(\d+)\s+quakes?\s+3\.[0-9]?\+/i)
+      const m2 = s.match(/(\d+)\s+quakes?\s+2\.[0-9]?\+/i)
+      const total = s.match(/\((\d+)\s+total\)/i)
+      res.totals = {
+        total: total ? Number(total[1]) : undefined,
+        m5: m5 ? Number(m5[1]) : undefined,
+        m4: m4 ? Number(m4[1]) : undefined,
+        m3: m3 ? Number(m3[1]) : undefined,
+        m2: m2 ? Number(m2[1]) : undefined,
+      }
+    }
+    // Top quakes: patterns "#1: Mag 5.9 <a href="...">Location</a>"
+    const top: QuakeEntry[] = []
+    const re = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
+    let m
+    while ((m = re.exec(html)) && top.length < 5) {
+      top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
+    }
+    if (top.length) res.top = top
+  } catch {}
+  return res
 }
 
 export default function EventsList() {
@@ -180,6 +214,58 @@ export default function EventsList() {
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600 uppercase tracking-wide">{d.source}</span>
                         )}
                       </div>
+                      {/* Earthquake report summary, if applicable */}
+                      {(() => {
+                        const titleText = stripHtmlAndDecode(d.title)
+                        const isWorldEqReport = /world earthquake report/i.test(titleText) || /earthquake stats/i.test(d.title)
+                        if (!isWorldEqReport) return null
+                        const parsed = parseEarthquakeReport(d.title)
+                        return (
+                          <div className="mt-2">
+                            {parsed.totals && (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {typeof parsed.totals.total === 'number' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300">Total: {parsed.totals.total}</span>
+                                )}
+                                {typeof parsed.totals.m5 === 'number' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-50 border border-red-200 text-red-700">M5+: {parsed.totals.m5}</span>
+                                )}
+                                {typeof parsed.totals.m4 === 'number' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-50 border border-amber-200 text-amber-700">M4+: {parsed.totals.m4}</span>
+                                )}
+                                {typeof parsed.totals.m3 === 'number' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-yellow-50 border border-yellow-200 text-yellow-700">M3+: {parsed.totals.m3}</span>
+                                )}
+                                {typeof parsed.totals.m2 === 'number' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 border border-green-200 text-green-700">M2+: {parsed.totals.m2}</span>
+                                )}
+                              </div>
+                            )}
+                            {parsed.top && parsed.top.length > 0 && (
+                              <div className="text-xs text-slate-600 dark:text-slate-400">
+                                <div className="font-semibold mb-1">Largest quakes (24h)</div>
+                                <ul className="space-y-1">
+                                  {parsed.top.map(q => (
+                                    <li key={q.rank} className="flex items-center gap-1">
+                                      <span className="inline-block w-5 text-slate-500">#{q.rank}</span>
+                                      <span className="font-medium">M{q.mag.toFixed(1)}</span>
+                                      <span className="mx-1">·</span>
+                                      {q.url ? (
+                                        <a href={q.url} target="_blank" rel="noopener noreferrer" className="hover:underline inline-flex items-center gap-1">
+                                          {q.title}
+                                          <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      ) : (
+                                        <span>{q.title}</span>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                 </li>
