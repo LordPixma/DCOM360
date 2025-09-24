@@ -3,11 +3,13 @@ import { json, mapSeverityToClient, buildCorsHeaders, sanitizeText } from './uti
 import { cache } from './cache'
 import { XMLParser } from 'fast-xml-parser'
 // Helper: parse World Earthquake Report HTML for totals and top items
-function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }, top?: Array<{ rank: number; mag: number; title: string; url?: string }> } {
+function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }, top?: Array<{ rank: number; mag: number; title: string; url?: string; datetime?: string; location?: string; felt?: number }> } {
   const res: any = {}
   try {
     const safe = String(html || '')
-    const sumMatch = safe.match(/Summary:\s*([^<]+)/i)
+    
+    // Enhanced summary parsing - handles both HTML and plain text formats
+    const sumMatch = safe.match(/Summary:\s*([^<\n]+)/i)
     if (sumMatch) {
       const s = sumMatch[1]
       const m5 = s.match(/(\d+)\s+quakes?\s+5(?:\.[0-9])?\+/i)
@@ -23,12 +25,59 @@ function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: numb
         m2: m2 ? Number(m2[1]) : undefined,
       }
     }
-    const top: Array<{ rank: number; mag: number; title: string; url?: string }> = []
+    
+    const top: Array<{ rank: number; mag: number; title: string; url?: string; datetime?: string; location?: string; felt?: number }> = []
+    
+    // Pattern 1: HTML anchors (existing format)
     const re1 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
     let m: RegExpExecArray | null
     while ((m = re1.exec(safe)) && top.length < 10) {
       top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
     }
+    
+    // Pattern 2: Raw text format from attachment - handles multi-line entries
+    if (top.length === 0) {
+      // Match pattern: "#1: Mag 5.2 Location, details Wednesday, Sep 24, 2025, at 12:39 pm (GMT -5) - #2: Mag 5.1..."
+      const rawPattern = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*([^#]+?)(?=\s*#\d+:|$)/gi
+      let m2: RegExpExecArray | null
+      while ((m2 = rawPattern.exec(safe)) && top.length < 20) {
+        const rank = Number(m2[1])
+        const mag = Number(m2[2])
+        const fullText = m2[3].trim()
+        
+        // Extract location (everything before the date pattern)
+        const dateMatch = fullText.match(/(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*([^-]+)/i)
+        const location = dateMatch ? dateMatch[1].trim().replace(/,\s*$/, '') : fullText.split(',')[0]
+        const datetime = dateMatch ? dateMatch[2].trim() : ''
+        
+        // Extract felt reports if present
+        const feltMatch = fullText.match(/(\d+)\s*(?:felt\s*)?reports?/i)
+        const felt = feltMatch ? Number(feltMatch[1]) : undefined
+        
+        top.push({ 
+          rank, 
+          mag, 
+          title: location,
+          location: location,
+          datetime: datetime,
+          felt: felt
+        })
+      }
+    }
+    
+    // Pattern 3: Fallback for simple formats
+    if (top.length === 0) {
+      const re3 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*(?:[-–]\s*)?([^#\n]+?)(?:\s*[-–]\s*(\d+)\s*(?:felt\s*)?reports?)?(?=\s*#|$)/gi
+      let m3: RegExpExecArray | null
+      while ((m3 = re3.exec(safe)) && top.length < 10) {
+        const rank = Number(m3[1])
+        const mag = Number(m3[2])
+        const title = m3[3].trim()
+        const felt = m3[4] ? Number(m3[4]) : undefined
+        top.push({ rank, mag, title, felt })
+      }
+    }
+    
     if (top.length) res.top = top.sort((a, b) => a.rank - b.rank)
   } catch {}
   return res

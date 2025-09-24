@@ -84,8 +84,8 @@ function parseEarthquakeReport(html: string): { totals?: { total?: number; m5?: 
   const res: { totals?: any; top?: QuakeEntry[] } = {}
   try {
     const safe = String(html || '')
-    // Totals: "Summary: 15 quakes 5.0+, 59 quakes 4.0+, 117 quakes 3.0+, 285 quakes 2.0+ (476 total)"
-    const sumMatch = safe.match(/Summary:\s*([^<]+)/i)
+    // Enhanced summary parsing - handles both HTML and plain text formats
+    const sumMatch = safe.match(/Summary:\s*([^<\n]+)/i)
     if (sumMatch) {
       const s = sumMatch[1]
       const m5 = s.match(/(\d+)\s+quakes?\s+5(?:\.[0-9])?\+/i)
@@ -101,12 +101,35 @@ function parseEarthquakeReport(html: string): { totals?: { total?: number; m5?: 
         m2: m2 ? Number(m2[1]) : undefined,
       }
     }
-    // Top quakes: patterns "#1: Mag 5.9 <a href="...">Location</a>"
+    
     const top: QuakeEntry[] = []
-    const re = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
+    
+    // Pattern 1: HTML anchors (existing format)
+    const re1 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
     let m: RegExpExecArray | null
-    while ((m = re.exec(safe)) && top.length < 5) {
+    while ((m = re1.exec(safe)) && top.length < 5) {
       top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
+    }
+    
+    // Pattern 2: Raw text format from attachment - for summary view, limit to top 5
+    if (top.length === 0) {
+      const rawPattern = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*([^#]+?)(?=\s*#\d+:|$)/gi
+      let m2: RegExpExecArray | null
+      while ((m2 = rawPattern.exec(safe)) && top.length < 5) {
+        const rank = Number(m2[1])
+        const mag = Number(m2[2])
+        const fullText = m2[3].trim()
+        
+        // Extract location (everything before the date pattern)
+        const dateMatch = fullText.match(/(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*([^-]+)/i)
+        const location = dateMatch ? dateMatch[1].trim().replace(/,\s*$/, '') : fullText.split(',')[0]
+        
+        top.push({ 
+          rank, 
+          mag, 
+          title: location
+        })
+      }
     }
     if (top.length) res.top = top
   } catch {}

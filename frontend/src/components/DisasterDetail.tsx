@@ -64,11 +64,13 @@ function fmtUTC(ts?: string) {
 }
 
 type QuakeEntry = { rank: number; mag: number; title: string; url?: string; felt?: number }
-function parseEarthquakeReport(html?: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }; top?: QuakeEntry[] } {
-  const res: { totals?: any; top?: QuakeEntry[] } = {}
+function parseEarthquakeReport(html?: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }; top?: QuakeEntry[]; regions?: { [key: string]: number }; timeline?: { hour: number; count: number }[] } {
+  const res: { totals?: any; top?: QuakeEntry[]; regions?: { [key: string]: number }; timeline?: { hour: number; count: number }[] } = {}
   try {
     const safe = String(html || '')
-    const sumMatch = safe.match(/Summary:\s*([^<]+)/i)
+    
+    // Enhanced summary parsing - handles both HTML and plain text formats
+    const sumMatch = safe.match(/Summary:\s*([^<\n]+)/i)
     if (sumMatch) {
       const s = sumMatch[1]
       const m5 = s.match(/(\d+)\s+quakes?\s+5(?:\.[0-9])?\+/i)
@@ -81,30 +83,124 @@ function parseEarthquakeReport(html?: string): { totals?: { total?: number; m5?:
         m5: m5 ? Number(m5[1]) : undefined,
         m4: m4 ? Number(m4[1]) : undefined,
         m3: m3 ? Number(m3[1]) : undefined,
-        m2: m2 ? Number(m2[1]) : undefined,
+        m2: m2 ? Number(m2[2]) : undefined,
       }
     }
+    
     const top: QuakeEntry[] = []
-    // Pattern 1: HTML anchors (before sanitization)
+    const regions: { [key: string]: number } = {}
+    const timeline: { hour: number; count: number }[] = []
+    const hourCounts: { [key: number]: number } = {}
+    
+    // Pattern 1: HTML anchors (existing format)
     const re1 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*<a[^>]+href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi
     let m: RegExpExecArray | null
-    while ((m = re1.exec(safe)) && top.length < 10) top.push({ rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] })
+    while ((m = re1.exec(safe)) && top.length < 20) {
+      const entry = { rank: Number(m[1]), mag: Number(m[2]), url: m[3], title: m[4] }
+      top.push(entry)
+      
+      // Extract region for clustering
+      const region = extractRegion(entry.title)
+      if (region) regions[region] = (regions[region] || 0) + 1
+    }
 
-    // Pattern 2: Plain text after sanitization: "#1: Mag 5.9 - Location - 6 felt reports"
-    if (top.length < 10) {
-      const re2 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*(?:[-–]\s*)?([^#\n]+?)(?:\s*[-–]\s*(\d+)\s*(?:felt\s*)?reports?)?(?=\s*#|$)/gi
+    // Pattern 2: Raw text format from attachment - handles multi-line entries  
+    if (top.length === 0) {
+      const rawPattern = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*([^#]+?)(?=\s*#\d+:|$)/gi
       let m2: RegExpExecArray | null
-      while ((m2 = re2.exec(safe)) && top.length < 10) {
+      while ((m2 = rawPattern.exec(safe)) && top.length < 20) {
         const rank = Number(m2[1])
         const mag = Number(m2[2])
-        const title = m2[3].trim()
-        const felt = m2[4] ? Number(m2[4]) : undefined
-        top.push({ rank, mag, title, felt })
+        const fullText = m2[3].trim()
+        
+        // Extract location (everything before the date pattern)
+        const dateMatch = fullText.match(/(.+?)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*([^-]+)/i)
+        const location = dateMatch ? dateMatch[1].trim().replace(/,\s*$/, '') : fullText.split(',')[0]
+        const datetime = dateMatch ? dateMatch[2].trim() : ''
+        
+        // Extract felt reports if present
+        const feltMatch = fullText.match(/(\d+)\s*(?:felt\s*)?reports?/i)
+        const felt = feltMatch ? Number(feltMatch[1]) : undefined
+        
+        // Extract hour for timeline
+        const timeMatch = datetime.match(/at\s+(\d+):(\d+)\s*([ap]m)/i)
+        if (timeMatch) {
+          let hour = Number(timeMatch[1])
+          if (timeMatch[3].toLowerCase() === 'pm' && hour !== 12) hour += 12
+          if (timeMatch[3].toLowerCase() === 'am' && hour === 12) hour = 0
+          hourCounts[hour] = (hourCounts[hour] || 0) + 1
+        }
+        
+        const entry = { 
+          rank, 
+          mag, 
+          title: location,
+          felt,
+          datetime
+        }
+        top.push(entry)
+        
+        // Extract region for clustering
+        const region = extractRegion(location)
+        if (region) regions[region] = (regions[region] || 0) + 1
       }
     }
+
+    // Pattern 3: Fallback for simple formats
+    if (top.length === 0) {
+      const re3 = /#(\d+):\s*Mag\s*(\d+(?:\.\d+)?)\s*(?:[-–]\s*)?([^#\n]+?)(?:\s*[-–]\s*(\d+)\s*(?:felt\s*)?reports?)?(?=\s*#|$)/gi
+      let m3: RegExpExecArray | null
+      while ((m3 = re3.exec(safe)) && top.length < 20) {
+        const rank = Number(m3[1])
+        const mag = Number(m3[2])
+        const title = m3[3].trim()
+        const felt = m3[4] ? Number(m3[4]) : undefined
+        const entry = { rank, mag, title, felt }
+        top.push(entry)
+        
+        // Extract region for clustering
+        const region = extractRegion(title)
+        if (region) regions[region] = (regions[region] || 0) + 1
+      }
+    }
+    
+    // Build timeline from hour counts
+    for (let hour = 0; hour < 24; hour++) {
+      timeline.push({ hour, count: hourCounts[hour] || 0 })
+    }
+    
     if (top.length) res.top = top.sort((a, b) => a.rank - b.rank)
+    if (Object.keys(regions).length) res.regions = regions
+    if (timeline.some(t => t.count > 0)) res.timeline = timeline
+    
   } catch {}
   return res
+}
+
+// Helper function to extract region from location string
+function extractRegion(location: string): string | null {
+  if (!location) return null
+  
+  // Extract country/region patterns
+  const patterns = [
+    /,\s*([A-Z][a-zA-Z\s]+)$/,  // "Location, Country"
+    /\b(Indonesia|Japan|Chile|Peru|Turkey|Greece|Iran|Philippines|New Zealand|Alaska|California|Mexico)\b/i,
+    /\b(Pacific|Atlantic|Indian)\s+Ocean/i,
+    /\b(Ring of Fire|Mariana|Caribbean|Mediterranean)\b/i
+  ]
+  
+  for (const pattern of patterns) {
+    const match = location.match(pattern)
+    if (match) return match[1].trim()
+  }
+  
+  // Fallback: use last part after comma
+  const parts = location.split(',')
+  if (parts.length > 1) {
+    return parts[parts.length - 1].trim()
+  }
+  
+  return null
 }
 
 export function DisasterDetail() {
@@ -271,11 +367,109 @@ export function DisasterDetail() {
                     })()}
                   </div>
 
+                  {/* Regional Distribution Chart */}
+                  {parsed?.regions && Object.keys(parsed.regions).length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3">Regional Distribution</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {Object.entries(parsed.regions)
+                          .sort(([,a], [,b]) => b - a)
+                          .slice(0, 6)
+                          .map(([region, count]) => {
+                            const maxCount = Math.max(...Object.values(parsed.regions!))
+                            const percentage = (count / maxCount) * 100
+                            return (
+                              <div key={region} className="p-3 bg-slate-50 dark:bg-slate-700/40 rounded-lg border border-slate-200 dark:border-slate-600">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-sm font-medium text-slate-900 dark:text-white truncate">{region}</span>
+                                  <span className="text-sm text-slate-600 dark:text-slate-400">{count}</span>
+                                </div>
+                                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-2">
+                                  <div 
+                                    className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+                                    style={{ width: `${percentage}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Timeline Visualization */}
+                  {parsed?.timeline && parsed.timeline.some(t => t.count > 0) && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3">24-Hour Activity Timeline (UTC)</h3>
+                      <div className="bg-slate-50 dark:bg-slate-700/40 rounded-lg border border-slate-200 dark:border-slate-600 p-4">
+                        <div className="flex items-end justify-between gap-1 h-24">
+                          {parsed.timeline.map(({ hour, count }) => {
+                            const maxCount = Math.max(...parsed.timeline!.map(t => t.count))
+                            const height = maxCount > 0 ? (count / maxCount) * 100 : 0
+                            return (
+                              <div key={hour} className="flex flex-col items-center gap-1 flex-1">
+                                <div 
+                                  className={`w-full rounded-t ${count > 0 ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-600'} transition-all duration-300`}
+                                  style={{ height: `${height}%`, minHeight: count > 0 ? '4px' : '2px' }}
+                                  title={`${hour.toString().padStart(2, '0')}:00 UTC - ${count} earthquakes`}
+                                ></div>
+                                {hour % 4 === 0 && (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    {hour.toString().padStart(2, '0')}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
+                          Hover over bars to see earthquake counts per hour
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Magnitude Distribution */}
+                  {parsed?.totals && (
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3">Magnitude Distribution</h3>
+                      <div className="bg-slate-50 dark:bg-slate-700/40 rounded-lg border border-slate-200 dark:border-slate-600 p-4">
+                        <div className="space-y-3">
+                          {[
+                            { range: '5.0+', count: parsed.totals.m5, color: 'bg-red-500', label: 'Major' },
+                            { range: '4.0+', count: parsed.totals.m4, color: 'bg-orange-500', label: 'Light' },
+                            { range: '3.0+', count: parsed.totals.m3, color: 'bg-yellow-500', label: 'Minor' },
+                            { range: '2.0+', count: parsed.totals.m2, color: 'bg-green-500', label: 'Micro' }
+                          ].map(({ range, count, color, label }) => {
+                            if (typeof count !== 'number') return null
+                            const maxCount = parsed.totals?.total || 1
+                            const percentage = (count / maxCount) * 100
+                            return (
+                              <div key={range} className="flex items-center gap-3">
+                                <div className="w-16 text-sm font-medium text-slate-900 dark:text-white">{range}</div>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <div className="flex-1 bg-slate-200 dark:bg-slate-600 rounded-full h-4 relative overflow-hidden">
+                                    <div 
+                                      className={`${color} h-full rounded-full transition-all duration-500`}
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="w-12 text-sm text-slate-600 dark:text-slate-400 text-right">{count}</div>
+                                </div>
+                                <div className="w-16 text-xs text-slate-500 dark:text-slate-400">{label}</div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Top Largest Quakes */}
                   {parsed?.top && parsed.top.length > 0 && (
                     <div className="mb-6">
                       <div className="flex items-center justify-between gap-2 mb-3">
-                        <h3 className="text-lg font-semibold">Top 10 Largest Earthquakes (Past 24 Hours)</h3>
+                        <h3 className="text-lg font-semibold">Top {parsed.top.length} Largest Earthquakes (Past 24 Hours)</h3>
                         <button
                           onClick={() => setExpanded(v => !v)}
                           className="text-sm px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/50"
