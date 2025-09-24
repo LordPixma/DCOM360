@@ -13,6 +13,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { useDisasters } from '../hooks/useDisasters';
+import { useAlertSubscriptions, useUserId } from '../hooks/useAlerts';
 
 interface AlertPreferences {
   enabled: boolean;
