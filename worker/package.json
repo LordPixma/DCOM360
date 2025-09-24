@@ -10,7 +10,7 @@
     "test:int": "tsx --tsconfig tsconfig.tests.json test/integration.test.ts"
   },
   "dependencies": {
-    "fast-xml-parser": "^4.5.0"
+    "fast-xml-parser": "^4.5.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240821.0",
