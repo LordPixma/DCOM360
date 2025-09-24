@@ -30,14 +30,21 @@ function json(data: unknown, init: ResponseInit = {}) {
 }
 
 // Coerce incoming disaster types to a known set for consistency in DB and API
-function normalizeDisasterType(type: string | undefined, title?: string, description?: string): 'earthquake'|'cyclone'|'flood'|'wildfire'|'other' {
+function normalizeDisasterType(type: string | undefined, title?: string, description?: string): 'earthquake'|'cyclone'|'flood'|'wildfire'|'landslide'|'drought'|'other' {
   const v = (type || '').toLowerCase().trim()
   const text = `${title || ''} ${description || ''}`.toLowerCase()
   const hay = (v + ' ' + text)
+  
   if (/earth\s*quake|\bquake\b|m\s*\d+(?:\.\d+)?\s*earth/.test(hay)) return 'earthquake'
   if (/tropical[_\s-]*cyclone|\bcyclone\b|\btyphoon\b|\bhurricane\b|\btc[-_\s]?\d*/.test(hay)) return 'cyclone'
-  if (/\bflood|flooding/.test(hay)) return 'flood'
-  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire alert/.test(hay)) return 'wildfire'
+  if (/\bflood|flooding|flash\s+flood/.test(hay)) return 'flood'
+  if (/wild\s*fire|forest\s*fire|\bwildfire\b|fire\s+alert/.test(hay)) return 'wildfire'
+  if (/landslide|mudslide|debris\s+flow|slope\s+failure/.test(hay)) return 'landslide'
+  if (/drought|water\s+scarcity|dry\s+spell/.test(hay)) return 'drought'
+  
+  // Map additional ReliefWeb types to 'other'
+  if (/volcano|volcanic|eruption|heatwave|heat\s+wave|epidemic|cholera|ebola|diphtheria|outbreak/.test(hay)) return 'other'
+  
   return 'other'
 }
 
@@ -266,6 +273,11 @@ export default {
         .run()
 
   return json({ success: true, data: { processed: parsedMany.length, newDisasters, updatedDisasters } })
+    }
+
+    // Health check endpoint
+    if (req.method === 'GET' && pathname === '/health') {
+      return json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } })
     }
 
   // Slightly more diagnostic 404 to help smoke-test debugging

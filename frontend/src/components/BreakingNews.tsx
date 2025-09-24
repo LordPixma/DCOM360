@@ -36,7 +36,7 @@ export function BreakingNews() {
           <Radio className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h3 className="font-bold text-slate-900 dark:text-white">Critical updates</h3>
+          <h3 className="font-bold text-slate-900 dark:text-white">News Updates</h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">Latest reports from MSF and Crisis Group</p>
         </div>
       </div>

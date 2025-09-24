@@ -296,8 +296,8 @@ export default function App() {
             </div>
             <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
               <Filters />
-              <BreakingNews />
               <RecentDisasters />
+              <BreakingNews />
             </div>
           </div>
         </section>

@@ -15,12 +15,23 @@ export type ParsedReliefWebItem = {
 
 function inferTypeFromText(text: string): string {
   const t = text.toLowerCase()
-  if (/earthquake/.test(t)) return 'earthquake'
-  if (/flood|flooding/.test(t)) return 'flood'
-  if (/cyclone|typhoon|hurricane|tropical\s+storm/.test(t)) return 'cyclone'
-  if (/wild\s*fire|wildfire|forest\s*fire/.test(t)) return 'wildfire'
-  if (/landslide|mudslide|debris\s+flow|slope\s+failure/.test(t)) return 'landslide'
-  if (/drought|water\s+scarcity|dry\s+spell/.test(t)) return 'drought'
+  
+  // Primary disaster types
+  if (/earthquake|quake/i.test(text)) return 'earthquake'
+  if (/flood|flooding|flash\s+flood/i.test(text)) return 'flood'
+  if (/cyclone|typhoon|hurricane|tropical\s+storm|tc[-_\s]?\d/i.test(text)) return 'cyclone'
+  if (/wild\s*fire|wildfire|forest\s*fire/i.test(text)) return 'wildfire'
+  if (/landslide|mudslide|debris\s+flow|slope\s+failure/i.test(text)) return 'landslide'
+  if (/drought|water\s+scarcity|dry\s+spell/i.test(text)) return 'drought'
+  
+  // Extended disaster types from ReliefWeb
+  if (/volcano|volcanic|eruption/i.test(text)) return 'volcano'
+  if (/heat\s+wave|extreme\s+heat|temperature/i.test(text)) return 'heatwave'
+  
+  // Disease outbreaks and epidemics
+  if (/cholera|ebola|diphtheria|outbreak|epidemic|disease/i.test(text)) return 'epidemic'
+  
+  // Return 'other' for unclassified disasters
   return 'other'
 }
 
@@ -43,11 +54,38 @@ function extractCategories(it: any): string[] {
   return []
 }
 
+function extractCountryFromDescription(description: string): string | undefined {
+  // Extract from HTML tags like: <div class="tag country">Affected country: Democratic Republic of the Congo</div>
+  const countryMatch = description.match(/<div class="tag country">Affected country:\s*([^<]+)<\/div>/i)
+  if (countryMatch) {
+    return countryMatch[1].trim()
+  }
+  return undefined
+}
+
+function extractGlideNumber(description: string, categories: string[]): string | undefined {
+  // Extract GLIDE number from description like: <div class="tag glide">Glide: EP-2025-000157-COD</div>
+  const glideMatch = description.match(/<div class="tag glide">Glide:\s*([^<]+)<\/div>/i)
+  if (glideMatch) {
+    return glideMatch[1].trim()
+  }
+  
+  // Also check categories for GLIDE numbers
+  for (const cat of categories) {
+    if (/^[A-Z]{2}-\d{4}-\d{6}-[A-Z]{3}$/.test(cat)) {
+      return cat
+    }
+  }
+  return undefined
+}
+
 function extractCountryFromCategories(categories: string[]): string | undefined {
   // ReliefWeb categories may include country names; pick the first that looks like a proper name
   for (const c of categories) {
     const s = String(c).trim()
     if (!s) continue
+    // Skip GLIDE numbers
+    if (/^[A-Z]{2}-\d{4}-\d{6}-[A-Z]{3}$/.test(s)) continue
     // Simple heuristic: ignore generic tags like Disaster, Update, Floods if too generic
     if (/^(disaster|update|report|appeal|floods?|earthquakes?|cyclones?|typhoons?)$/i.test(s)) continue
     // Prefer words with spaces (country names) or capitalized words
@@ -101,53 +139,85 @@ function parseNumberNearKeywords(text: string, keywords: RegExp): number | undef
 
 function inferSeverityFromText(text: string, disasterType: string): 'GREEN'|'ORANGE'|'RED' {
   const t = text.toLowerCase()
-  // Strong keywords
-  const redWords = /(catastrophic|devastating|massive\s+destruction|widespread\s+destruction|disaster\s+declared)/i
-  const orangeWords = /(major|severe|state of emergency|evacuation|evacuations|flash\s+flood|emergency\s+declared)/i
+  
+  // Strong keywords for RED severity
+  const redWords = /(catastrophic|devastating|massive\s+destruction|widespread\s+destruction|disaster\s+declared|state\s+of\s+calamity|national\s+emergency)/i
+  
+  // Moderate keywords for ORANGE severity  
+  const orangeWords = /(major|severe|state\s+of\s+emergency|evacuation|evacuations|flash\s+flood|emergency\s+declared|widespread|critical)/i
 
   // Numeric signals
   const mag = parseMagnitude(text)
   const cat = parseCycloneCategory(text)
-  const deaths = parseNumberNearKeywords(text, /(death|deaths|killed|fatalities)/gi)
-  const affected = parseNumberNearKeywords(text, /(affected|displaced|evacuated)/gi)
+  const deaths = parseNumberNearKeywords(text, /(death|deaths|killed|fatalities|died)/gi)
+  const affected = parseNumberNearKeywords(text, /(affected|displaced|evacuated|people)/gi)
+  const injured = parseNumberNearKeywords(text, /(injured|injuries)/gi)
 
-  // Type-specific numeric thresholds (tuned for ReliefWeb content density)
-  if (disasterType === 'earthquake' && mag !== undefined) {
-    if (mag >= 6.8) return 'RED'
-    if (mag >= 5.8) return 'ORANGE'
+  // Type-specific severity assessment
+  if (disasterType === 'earthquake') {
+    if (mag !== undefined) {
+      if (mag >= 6.5) return 'RED'
+      if (mag >= 5.5) return 'ORANGE'
+    }
+    if (deaths !== undefined) {
+      if (deaths >= 100) return 'RED'
+      if (deaths >= 10) return 'ORANGE'
+    }
   }
-  if (disasterType === 'cyclone' && cat !== undefined) {
-    if (cat >= 3) return 'RED'
-    if (cat >= 1) return 'ORANGE'
+  
+  if (disasterType === 'cyclone') {
+    if (cat !== undefined) {
+      if (cat >= 3) return 'RED'
+      if (cat >= 1) return 'ORANGE'
+    }
   }
-  if (disasterType === 'landslide') {
-    if (deaths !== undefined && deaths >= 10) return 'RED'
-    if (affected !== undefined && affected >= 5_000) return 'ORANGE'
-    if (/major\s+landslide|villages?\s+buried|homes?\s+buried/i.test(text)) return 'ORANGE'
+  
+  if (disasterType === 'flood') {
+    if (deaths !== undefined && deaths >= 50) return 'RED'
+    if (affected !== undefined && affected >= 100_000) return 'RED'
+    if (deaths !== undefined && deaths >= 10) return 'ORANGE'
+    if (affected !== undefined && affected >= 10_000) return 'ORANGE'
   }
+  
+  if (disasterType === 'wildfire') {
+    if (/out\s+of\s+control|uncontrolled|evacuations|homes?\s+destroyed/i.test(text)) return 'ORANGE'
+    if (deaths !== undefined && deaths >= 5) return 'RED'
+  }
+  
+  if (disasterType === 'epidemic') {
+    // Disease outbreaks - focus on spread and fatality rate
+    if (deaths !== undefined && deaths >= 20) return 'RED'
+    if (affected !== undefined && affected >= 1000) return 'ORANGE'
+    if (/outbreak\s+declared|epidemic|pandemic/i.test(text)) return 'ORANGE'
+  }
+  
   if (disasterType === 'drought') {
-    // Drought often reported with large affected numbers; use higher thresholds
-    if (affected !== undefined && affected >= 500_000) return 'RED'
+    if (affected !== undefined && affected >= 1_000_000) return 'RED'
     if (affected !== undefined && affected >= 100_000) return 'ORANGE'
-    if (/severe\s+drought|prolonged\s+drought|acute\s+food\s+insecurity/i.test(text)) return 'ORANGE'
+    if (/severe\s+drought|prolonged\s+drought|acute\s+food\s+insecurity|famine/i.test(text)) return 'ORANGE'
+  }
+  
+  if (disasterType === 'heatwave') {
+    if (deaths !== undefined && deaths >= 10) return 'RED'
+    if (/extreme\s+heat|record\s+temperature|heat\s+emergency/i.test(text)) return 'ORANGE'
   }
 
-  // Casualties / affected thresholds (generic)
+  // Generic thresholds for casualties and affected populations
   if (deaths !== undefined) {
-    if (deaths >= 25) return 'RED'
-    if (deaths >= 5) return 'ORANGE'
+    if (deaths >= 100) return 'RED'
+    if (deaths >= 10) return 'ORANGE'
   }
+  
+  if (injured !== undefined && injured >= 100) return 'ORANGE'
+  
   if (affected !== undefined) {
-    if (affected >= 250_000) return 'RED'
-    if (affected >= 25_000) return 'ORANGE'
+    if (affected >= 500_000) return 'RED'
+    if (affected >= 50_000) return 'ORANGE'
   }
 
   // Keyword-based fallback
   if (redWords.test(text)) return 'RED'
   if (orangeWords.test(text)) return 'ORANGE'
-
-  // Wildfire extra: "out of control" -> ORANGE
-  if (disasterType === 'wildfire' && /out of control/i.test(text)) return 'ORANGE'
 
   return 'GREEN'
 }
@@ -159,19 +229,30 @@ export function parseReliefwebFeed(xml: string): ParsedReliefWebItem[] {
   if (!items) return []
   const list = Array.isArray(items) ? items : [items]
   const result: ParsedReliefWebItem[] = []
+  
   for (const it of list) {
     const guid = String(it.guid?.['#text'] || it.guid || it.link || it.title || '')
     if (!guid) continue
-    const ext = `reliefweb:${guid}`
+    
     const title: string = String(it.title || '')
     const description: string = it.description ? String(it.description) : ''
     const pub = it.pubDate ? new Date(it.pubDate) : new Date()
     const when = isNaN(pub.getTime()) ? new Date() : pub
     const categories = extractCategories(it)
-  const countryName = extractCountryFromCategories(categories)?.replace(/\(.*?\)/g, '').trim()
-
-  const disaster_type = inferTypeFromText(`${title} ${description} ${categories.join(' ')}`)
-  const severity: ParsedReliefWebItem['severity'] = inferSeverityFromText(`${title} ${description} ${categories.join(' ')}`, disaster_type)
+    
+    // Enhanced country extraction - try description first, then categories
+    const countryFromDesc = extractCountryFromDescription(description)
+    const countryFromCats = extractCountryFromCategories(categories)
+    const countryName = (countryFromDesc || countryFromCats)?.replace(/\(.*?\)/g, '').trim()
+    
+    // Extract GLIDE number for more specific external_id
+    const glideNumber = extractGlideNumber(description, categories)
+    const ext = glideNumber ? `reliefweb:${glideNumber}` : `reliefweb:${guid}`
+    
+    // Enhanced disaster type inference using all available text
+    const fullText = `${title} ${description} ${categories.join(' ')}`
+    const disaster_type = inferTypeFromText(fullText)
+    const severity: ParsedReliefWebItem['severity'] = inferSeverityFromText(fullText, disaster_type)
 
     result.push({
       external_id: ext,
