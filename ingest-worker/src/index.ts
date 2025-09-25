@@ -100,15 +100,14 @@ async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newD
       updatedDisasters = 1
     }
 
-    // Invalidate cache keys
+    // Optimized cache invalidation - use wildcard patterns where supported
     if (env.CACHE) {
-      const keys = [
+      // Clear specific high-traffic keys and let other cache entries expire naturally
+      const criticalKeys = [
         'disasters:summary',
-        'disasters:current:all:all:all:50:0',
-        'disasters:history:7',
-        'countries:list',
+        'disasters:current:all:all:all:none:50:0', // Most common query
       ]
-      await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+      await Promise.all(criticalKeys.map((k) => env.CACHE!.delete(k).catch(() => {})))
     }
 
     return { newDisasters, updatedDisasters }
@@ -143,11 +142,27 @@ export default {
         let newDisasters = 0
         let updatedDisasters = 0
         const errors: Array<{ id: string; error: string }> = []
-        for (const p of items) {
-          const r = await processParsedEmail(p as any, env)
-          newDisasters += r.newDisasters
-          updatedDisasters += r.updatedDisasters
-          if (r.error) errors.push({ id: (p as any).external_id, error: r.error })
+        
+        // Process items in parallel with limited concurrency to avoid DB lock issues
+        const processChunk = async (chunk: any[]) => {
+          const results = await Promise.allSettled(chunk.map(p => processParsedEmail(p, env)))
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i]
+            if (result.status === 'fulfilled') {
+              const r = result.value
+              newDisasters += r.newDisasters
+              updatedDisasters += r.updatedDisasters
+              if (r.error) errors.push({ id: chunk[i].external_id, error: r.error })
+            } else {
+              errors.push({ id: chunk[i].external_id, error: result.reason?.message || 'Processing failed' })
+            }
+          }
+        }
+        
+        // Process in chunks of 3 to avoid overwhelming D1
+        for (let i = 0; i < items.length; i += 3) {
+          const chunk = items.slice(i, i + 3)
+          await processChunk(chunk)
         }
         if (env.CACHE) {
           const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
@@ -179,11 +194,27 @@ export default {
         let newDisasters = 0
         let updatedDisasters = 0
         const errors: Array<{ id: string; error: string }> = []
-        for (const p of items) {
-          const r = await processParsedEmail(p as any, env)
-          newDisasters += r.newDisasters
-          updatedDisasters += r.updatedDisasters
-          if (r.error) errors.push({ id: (p as any).external_id, error: r.error })
+        
+        // Process items in parallel chunks
+        const processChunk = async (chunk: any[]) => {
+          const results = await Promise.allSettled(chunk.map(p => processParsedEmail(p, env)))
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i]
+            if (result.status === 'fulfilled') {
+              const r = result.value
+              newDisasters += r.newDisasters
+              updatedDisasters += r.updatedDisasters
+              if (r.error) errors.push({ id: chunk[i].external_id, error: r.error })
+            } else {
+              errors.push({ id: chunk[i].external_id, error: result.reason?.message || 'Processing failed' })
+            }
+          }
+        }
+        
+        // Process in chunks of 5 for ReliefWeb (typically has more items)
+        for (let i = 0; i < items.length; i += 5) {
+          const chunk = items.slice(i, i + 5)
+          await processChunk(chunk)
         }
         if (env.CACHE) {
           const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']

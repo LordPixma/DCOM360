@@ -1,31 +1,6 @@
--- D1 schema aligned to worker/src/types.ts
+-- D1 modern schema
 PRAGMA foreign_keys=ON;
 
-CREATE TABLE IF NOT EXISTS disasters (
-  id TEXT PRIMARY KEY,
-  disaster_type TEXT NOT NULL,
-  severity TEXT NOT NULL CHECK (severity IN ('RED','ORANGE','GREEN')),
-  title TEXT NOT NULL,
-  country TEXT,
-  coordinates_lat REAL,
-  coordinates_lng REAL,
-  event_timestamp TEXT NOT NULL,
-  is_active INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE INDEX IF NOT EXISTS idx_disasters_event_ts ON disasters(event_timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_disasters_type ON disasters(disaster_type);
-CREATE INDEX IF NOT EXISTS idx_disasters_country ON disasters(country);
-CREATE INDEX IF NOT EXISTS idx_disasters_severity ON disasters(severity);
-CREATE INDEX IF NOT EXISTS idx_disasters_active ON disasters(is_active);
-
--- Optional lookup for countries
-CREATE TABLE IF NOT EXISTS countries (
-  code TEXT PRIMARY KEY,
-  name TEXT NOT NULL
-);
-
--- D1 initial schema: disasters
 CREATE TABLE IF NOT EXISTS disasters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   external_id TEXT UNIQUE,
@@ -49,8 +24,15 @@ CREATE TABLE IF NOT EXISTS disasters (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_disasters_active ON disasters(is_active);
-CREATE INDEX IF NOT EXISTS idx_disasters_event_time ON disasters(event_timestamp);
-CREATE INDEX IF NOT EXISTS idx_disasters_severity ON disasters(severity);
-CREATE INDEX IF NOT EXISTS idx_disasters_type ON disasters(disaster_type);
-CREATE INDEX IF NOT EXISTS idx_disasters_country ON disasters(country);
+-- Optimized compound indexes for common query patterns
+CREATE INDEX IF NOT EXISTS idx_disasters_active_timestamp ON disasters(is_active, event_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_disasters_active_severity ON disasters(is_active, severity);
+CREATE INDEX IF NOT EXISTS idx_disasters_active_type ON disasters(is_active, disaster_type);
+CREATE INDEX IF NOT EXISTS idx_disasters_active_country ON disasters(is_active, country);
+CREATE INDEX IF NOT EXISTS idx_disasters_external_id ON disasters(external_id);
+
+-- Countries lookup table
+CREATE TABLE IF NOT EXISTS countries (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);

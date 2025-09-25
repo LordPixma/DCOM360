@@ -38,7 +38,10 @@ export function useDisasters(opts: DisastersQuery = {}) {
     queryFn: async () => {
       const res = await api.get<APIResponse<Disaster[]>>(`/api/disasters/current?${params.toString()}`)
       return res.data.data
-  },
-  staleTime: 1000 * 60, // 1 min
+    },
+    staleTime: 1000 * 60, // 1 min
+    gcTime: 1000 * 60 * 5, // 5 min garbage collection
+    refetchOnWindowFocus: false, // Avoid unnecessary refetches on focus
+    refetchOnReconnect: 'always', // Always refetch when reconnecting
   })
 }

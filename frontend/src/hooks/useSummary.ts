@@ -20,7 +20,10 @@ export function useSummary() {
     queryFn: async () => {
       const res = await api.get<APIResponse<SummaryResponse>>('/api/disasters/summary')
       return res.data.data
-  },
-  staleTime: 1000 * 60, // 1 min
+    },
+    staleTime: 1000 * 60 * 2, // 2 min - summary changes less frequently
+    gcTime: 1000 * 60 * 10, // 10 min garbage collection
+    refetchOnWindowFocus: false,
+    refetchInterval: 1000 * 60 * 5, // Auto-refetch every 5 minutes
   })
 }

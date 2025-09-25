@@ -148,17 +148,21 @@ export default {
         }
       })
     }
-    // Simple KV-backed rate limit (best-effort)
-    const rlKey = `rl:${url.pathname}:${request.headers.get('cf-connecting-ip') || 'anon'}`
-    try {
+    // Optimized rate limiting with tiered limits
+    const isAdminPath = url.pathname.startsWith('/api/admin/')
+    if (!isAdminPath) { // Skip rate limiting for admin endpoints (they have auth)
+      const ip = request.headers.get('cf-connecting-ip') || 'anon'
       const nowBucket = Math.floor(Date.now() / 1000 / 60) // 1-min bucket
-      const key = `${rlKey}:${nowBucket}`
-      const current = parseInt((await cache.get(env, key)) || '0', 10)
-      if (current >= 120) {
-        return json({ success: false, data: null, error: { code: 'rate_limited', message: 'Too many requests' } }, { status: 429, headers: { ...cors } })
-      }
-      await cache.put(env, key, String(current + 1), 60)
-    } catch {}
+      const rlKey = `rl:${ip}:${nowBucket}`
+      try {
+        const current = parseInt((await cache.get(env, rlKey)) || '0', 10)
+        const limit = url.pathname.includes('/summary') ? 20 : 120 // Lower limit for expensive queries
+        if (current >= limit) {
+          return json({ success: false, data: null, error: { code: 'rate_limited', message: 'Too many requests' } }, { status: 429, headers: { ...cors, 'retry-after': '60' } })
+        }
+        cache.put(env, rlKey, String(current + 1), 60).catch(() => {}) // Fire and forget
+      } catch {}
+    }
     if (url.pathname === '/api/health') {
       return json(
         { success: true, data: { status: 'ok', ts: new Date().toISOString() } },
@@ -402,23 +406,33 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-        // Build filter SQL and params once to share between count and page queries
-        let baseWhere = `FROM disasters WHERE is_active = 1`
+        // Optimized single query with count - avoid duplicate WHERE clause execution
+        let baseWhere = `WHERE is_active = 1`
         const params: any[] = []
         if (type) { baseWhere += ` AND disaster_type = ?`; params.push(type) }
         if (severity) { baseWhere += ` AND severity = ?`; params.push(severity.toUpperCase()) }
         if (country) { baseWhere += ` AND country = ?`; params.push(country) }
-        if (q) { baseWhere += ` AND (title LIKE ? OR country LIKE ?)`; const pat = `%${q}%`; params.push(pat, pat) }
+        if (q) { 
+          baseWhere += ` AND (title LIKE ? OR country LIKE ? OR disaster_type LIKE ?)`
+          const pat = `%${q}%`
+          params.push(pat, pat, pat) 
+        }
 
-        // Total count for the current filters
-        const countSql = `SELECT COUNT(*) as total ${baseWhere}`
-        const countRow = await env.DB.prepare(countSql).bind(...params).first<{ total: number }>()
-        const total = countRow?.total ?? 0
-
-        // Paged query
-        const pageSql = `SELECT id, external_id, disaster_type, severity, title, country, coordinates_lat, coordinates_lng, event_timestamp ${baseWhere} ORDER BY event_timestamp DESC LIMIT ? OFFSET ?`
-        const pageParams = [...params, limit, offset]
-        const rows = await env.DB.prepare(pageSql).bind(...pageParams).all<DisasterRow>()
+        // Combined query for both count and data using window functions
+        const combinedSql = `
+          WITH filtered AS (
+            SELECT id, external_id, disaster_type, severity, title, country, 
+                   coordinates_lat, coordinates_lng, event_timestamp,
+                   COUNT(*) OVER() as total_count
+            FROM disasters ${baseWhere}
+            ORDER BY event_timestamp DESC
+            LIMIT ? OFFSET ?
+          )
+          SELECT * FROM filtered
+        `
+        const allParams = [...params, limit, offset]
+        const rows = await env.DB.prepare(combinedSql).bind(...allParams).all<DisasterRow & { total_count: number }>()
+        const total = rows.results[0]?.total_count ?? 0
         const items: Disaster[] = rows.results.map(r => ({
           id: String(r.id),
           type: r.disaster_type,
@@ -488,15 +502,47 @@ export default {
         if (cached) {
           return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
         }
-    const typeSql = `SELECT disaster_type as type, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY disaster_type`
-    const rows = await env.DB.prepare(typeSql).all<{ type: string; count: number }>()
-    const totals = rows.results
-    const sevRows = await env.DB.prepare(`SELECT severity, COUNT(*) as count FROM disasters WHERE is_active = 1 GROUP BY severity`).all<{ severity: string; count: number }>()
-    const affectedRow = await env.DB.prepare(`SELECT COALESCE(SUM(affected_population), 0) as total_affected FROM disasters WHERE is_active = 1`).first<{ total_affected: number }>()
-    const recent24 = await env.DB.prepare(`SELECT COUNT(*) as cnt FROM disasters WHERE is_active = 1 AND event_timestamp >= datetime('now', '-1 day')`).first<{ cnt: number }>()
-    const totalAffected = affectedRow?.total_affected ?? 0
+    // Single optimized query to get all summary data at once
+    const summaryQuery = `
+      SELECT 
+        disaster_type,
+        severity,
+        COUNT(*) as count,
+        SUM(COALESCE(affected_population, 0)) as affected_population,
+        SUM(CASE WHEN event_timestamp >= datetime('now', '-1 day') THEN 1 ELSE 0 END) as recent_24h
+      FROM disasters 
+      WHERE is_active = 1 
+      GROUP BY disaster_type, severity
+    `
+    const summaryRows = await env.DB.prepare(summaryQuery).all<{
+      disaster_type: string;
+      severity: string;
+      count: number;
+      affected_population: number;
+      recent_24h: number;
+    }>()
+    
+    // Process results into required format
+    const totals: { type: string; count: number }[] = []
+    const severityBreakdown: { severity: string; count: number }[] = []
+    let totalAffected = 0
+    let recent24Count = 0
+    
+    const typeMap = new Map<string, number>()
+    const sevMap = new Map<string, number>()
+    
+    for (const row of summaryRows.results) {
+      typeMap.set(row.disaster_type, (typeMap.get(row.disaster_type) || 0) + row.count)
+      sevMap.set(row.severity, (sevMap.get(row.severity) || 0) + row.count)
+      totalAffected += row.affected_population
+      recent24Count += row.recent_24h
+    }
+    
+    totals.push(...Array.from(typeMap.entries()).map(([type, count]) => ({ type, count })))
+    severityBreakdown.push(...Array.from(sevMap.entries()).map(([severity, count]) => ({ severity, count })))
+    
     const economicEstimate = Math.round(totalAffected * 150) // simple placeholder estimate in USD
-  const body: APIResponse<{ totals: { type: string; count: number }[]; severity_breakdown: { severity: string; count: number }[]; total_affected_population: number; recent_24h: number; economic_impact_estimate_usd: number }> = { success: true, data: { totals, severity_breakdown: sevRows.results, total_affected_population: totalAffected, recent_24h: recent24?.cnt ?? 0, economic_impact_estimate_usd: economicEstimate } }
+  const body: APIResponse<{ totals: { type: string; count: number }[]; severity_breakdown: { severity: string; count: number }[]; total_affected_population: number; recent_24h: number; economic_impact_estimate_usd: number }> = { success: true, data: { totals, severity_breakdown: severityBreakdown, total_affected_population: totalAffected, recent_24h: recent24Count, economic_impact_estimate_usd: economicEstimate } }
         const jsonStr = JSON.stringify(body)
         await cache.put(env, cacheKey, jsonStr, 300)
   return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
