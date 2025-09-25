@@ -458,8 +458,10 @@ export default {
   return json(body, { headers: { ...cors } })
       }
     }
-    // Single disaster details
-    if (url.pathname.startsWith('/api/disasters/') && request.method === 'GET') {
+    // Single disaster details - must be after more specific routes
+    if (url.pathname.startsWith('/api/disasters/') && request.method === 'GET' && 
+        !url.pathname.includes('/summary') && !url.pathname.includes('/history') && 
+        !url.pathname.includes('/current') && !url.pathname.includes('/eq-report')) {
       const id = url.pathname.split('/').pop()!
       try {
         if (!env.DB) {
