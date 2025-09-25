@@ -17,6 +17,7 @@ export type DisasterRow = {
   coordinates_lat?: number | null
   coordinates_lng?: number | null
   event_timestamp: string
+  affected_population?: number | null
 }
 
 export type Disaster = {
@@ -28,5 +29,6 @@ export type Disaster = {
   longitude?: number
   title: string
   occurred_at: string
+  affected_population?: number
   source?: string
 }
