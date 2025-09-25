@@ -11,6 +11,7 @@ export type ParsedReliefWebItem = {
   coordinates_lng?: number
   event_timestamp: string
   description?: string
+  affected_population?: number
 }
 
 function inferTypeFromText(text: string): string {
@@ -137,6 +138,12 @@ function parseNumberNearKeywords(text: string, keywords: RegExp): number | undef
   return Math.max(...matches)
 }
 
+function extractAffectedPopulation(text: string): number | undefined {
+  // Use the existing parseNumberNearKeywords function to extract affected population
+  const affected = parseNumberNearKeywords(text, /(affected|displaced|evacuated|people.*affected|affected.*people|population.*affected|affected.*population)/gi)
+  return affected
+}
+
 function inferSeverityFromText(text: string, disasterType: string): 'GREEN'|'ORANGE'|'RED' {
   const t = text.toLowerCase()
   
@@ -253,6 +260,9 @@ export function parseReliefwebFeed(xml: string): ParsedReliefWebItem[] {
     const fullText = `${title} ${description} ${categories.join(' ')}`
     const disaster_type = inferTypeFromText(fullText)
     const severity: ParsedReliefWebItem['severity'] = inferSeverityFromText(fullText, disaster_type)
+    
+    // Extract affected population from all available text
+    const affected_population = extractAffectedPopulation(fullText)
 
     result.push({
       external_id: ext,
@@ -262,6 +272,7 @@ export function parseReliefwebFeed(xml: string): ParsedReliefWebItem[] {
       country: (countryName && resolveCountryIso2(countryName)) || undefined,
       event_timestamp: when.toISOString(),
       description,
+      affected_population,
     })
   }
   return result

@@ -9,6 +9,7 @@ export type ParsedEmail = {
   event_timestamp: string
   description?: string
   metadata?: Record<string, unknown>
+  affected_population?: number
 }
 
 // Very lightweight parser that expects simple GDACS-like lines.

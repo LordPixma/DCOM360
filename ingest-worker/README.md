@@ -7,7 +7,6 @@ This worker ingests GDACS-like alerts via:
 - RSS endpoints:
    - `POST /ingest/gdacs` pulls the GDACS RSS feed once on demand and persists new items.
    - `POST /ingest/reliefweb` pulls the ReliefWeb Disasters RSS on demand and persists items with inferred severities.
-   - `POST /ingest/volcano` pulls the VolcanoDiscovery RSS once on demand and persists new items.
 
 ## Configure Cloudflare Email Routing
 
@@ -40,7 +39,6 @@ Subject is also considered for ID/title. The parser is tolerant and falls back w
 - Email: Email Workers aren’t simulated in `--local`; test via production/staging routing or send HTTP JSON to mimic content.
 - GDACS RSS: `curl -X POST http://127.0.0.1:8787/ingest/gdacs -H "authorization: Bearer dev-token-123"`
 - ReliefWeb RSS: `curl -X POST http://127.0.0.1:8787/ingest/reliefweb -H "authorization: Bearer dev-token-123"`
-- VolcanoDiscovery RSS: `curl -X POST http://127.0.0.1:8787/ingest/volcano -H "authorization: Bearer dev-token-123"`
 
 ## Data Flow
 
@@ -49,11 +47,7 @@ Subject is also considered for ID/title. The parser is tolerant and falls back w
 - Processing summary appended into `processing_logs`.
 - Cache keys invalidated in KV: `disasters:summary`, `disasters:current:*`, `disasters:history:7`, `countries:list`.
 
-## VolcanoDiscovery classification
 
-- Earthquakes are classified as `earthquake` like GDACS.
-- Volcano-related news (eruption, ash plume) map to `other` to align with existing GDACS categories.
-- Severities are heuristically derived: earthquakes by magnitude thresholds (>=6.5 RED, >=5 ORANGE, else GREEN); eruption notices default to ORANGE when strong terms present, else GREEN.
 
 ## Newsletter parsing and normalization
 

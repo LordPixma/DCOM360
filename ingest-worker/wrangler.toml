@@ -18,14 +18,12 @@ id = "46818e79770044efa2e863ca0b0f465a"
 INGEST_TOKEN = "dev-token-123" # set via `wrangler secret put INGEST_TOKEN` in production
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
-VOLCANODISCOVERY_RSS_URL = "https://www.volcanodiscovery.com/volcanoesandearthquakenews.rss"
 
 [env.staging]
 [env.staging.vars]
 INGEST_TOKEN = "dev-token-123"
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
-VOLCANODISCOVERY_RSS_URL = "https://www.volcanodiscovery.com/volcanoesandearthquakenews.rss"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
@@ -40,7 +38,6 @@ id = "46818e79770044efa2e863ca0b0f465a"
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 INGEST_TOKEN = ""
-VOLCANODISCOVERY_RSS_URL = "https://www.volcanodiscovery.com/volcanoesandearthquakenews.rss"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
