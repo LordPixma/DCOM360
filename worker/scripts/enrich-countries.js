@@ -309,52 +309,55 @@ function executeSQL(sql, description) {
 function insertCountryData(countries) {
   console.log(`📝 Inserting ${countries.length} countries into database...`);
   
-  const BATCH_SIZE = 50; // Process in batches to avoid SQL length limits
+  const BATCH_SIZE = 10; // Process in smaller batches to avoid SQL length limits
   let successCount = 0;
   let errorCount = 0;
   
   for (let i = 0; i < countries.length; i += BATCH_SIZE) {
     const batch = countries.slice(i, i + BATCH_SIZE);
     
-    // Create INSERT OR REPLACE statement
-    const values = batch.map(country => {
-      const escapedValues = [
-        `'${country.code}'`,
-        `'${(country.name || '').replace(/'/g, "''")}'`,
-        `'${(country.official_name || '').replace(/'/g, "''")}'`,
-        country.region ? `'${country.region.replace(/'/g, "''")}'` : 'NULL',
-        country.subregion ? `'${country.subregion.replace(/'/g, "''")}'` : 'NULL',
-        country.population || 'NULL',
-        country.coordinates_lat || 'NULL',
-        country.coordinates_lng || 'NULL',
-        country.flag ? `'${country.flag}'` : 'NULL',
-        country.flag_url ? `'${country.flag_url.replace(/'/g, "''")}'` : 'NULL',
-        country.capital ? `'${country.capital.replace(/'/g, "''")}'` : 'NULL',
-        country.area || 'NULL',
-        country.languages ? `'${country.languages.replace(/'/g, "''")}'` : 'NULL',
-        country.currencies ? `'${country.currencies.replace(/'/g, "''")}'` : 'NULL',
-        country.timezones ? `'${country.timezones.replace(/'/g, "''")}'` : 'NULL',
-        country.iso3 ? `'${country.iso3}'` : 'NULL',
-        country.numeric_code ? `'${country.numeric_code}'` : 'NULL'
-      ];
+    // Process each country individually to avoid SQL length limits
+    for (const country of batch) {
+      // Helper function to safely escape strings
+      const escapeString = (str) => {
+        if (!str) return 'NULL';
+        return `'${str.replace(/'/g, "''").replace(/\\/g, '\\\\')}'`;
+      };
       
-      return `(${escapedValues.join(', ')})`;
-    }).join(', ');
-    
-    const sql = `INSERT OR REPLACE INTO countries (
-      code, name, official_name, region, subregion, population,
-      coordinates_lat, coordinates_lng, flag, flag_url, capital,
-      area, languages, currencies, timezones, iso3, numeric_code
-    ) VALUES ${values}`;
-    
-    const result = executeSQL(sql, `Inserting batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(countries.length/BATCH_SIZE)}`);
-    
-    if (result.success) {
-      successCount += batch.length;
-    } else {
-      errorCount += batch.length;
-      console.error(`❌ Batch ${Math.floor(i/BATCH_SIZE) + 1} failed:`, result.error);
+      const sql = `INSERT OR REPLACE INTO countries (
+        code, name, official_name, region, subregion, population,
+        coordinates_lat, coordinates_lng, flag, flag_url, capital,
+        area, languages, currencies, timezones, iso3, numeric_code
+      ) VALUES (
+        ${escapeString(country.code)},
+        ${escapeString(country.name)},
+        ${escapeString(country.official_name)},
+        ${escapeString(country.region)},
+        ${escapeString(country.subregion)},
+        ${country.population || 'NULL'},
+        ${country.coordinates_lat || 'NULL'},
+        ${country.coordinates_lng || 'NULL'},
+        ${escapeString(country.flag)},
+        ${escapeString(country.flag_url)},
+        ${escapeString(country.capital)},
+        ${country.area || 'NULL'},
+        ${escapeString(country.languages)},
+        ${escapeString(country.currencies)},
+        ${escapeString(country.timezones)},
+        ${escapeString(country.iso3)},
+        ${country.numeric_code ? `'${country.numeric_code}'` : 'NULL'}
+      )`;
+      
+      const result = executeSQL(sql, `Inserting ${country.name} (${country.code})`);
+      
+      if (result.success) {
+        successCount++;
+      } else {
+        errorCount++;
+        console.error(`❌ Failed to insert ${country.name}:`, result.error);
+      }
     }
+
   }
   
   console.log(`✅ Country insertion complete: ${successCount} success, ${errorCount} errors`);

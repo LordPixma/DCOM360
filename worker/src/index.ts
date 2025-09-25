@@ -616,6 +616,64 @@ export default {
   return json({ success: true, data, meta: { fallback: true } }, { headers: { ...cors } })
       }
     }
+    
+    // Enhanced country details endpoint with population, coordinates, and regional data
+    if (url.pathname === '/api/countries/enhanced' && request.method === 'GET') {
+      try {
+        if (!env.DB) throw new Error('DB not bound; using mock')
+        const cacheKey = 'countries:enhanced'
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+        const sql = `SELECT code, name, region, subregion, population, coordinates_lat, coordinates_lng FROM countries ORDER BY name`
+        const rows = await env.DB.prepare(sql).all<{ 
+          code: string; 
+          name: string; 
+          region: string | null; 
+          subregion: string | null; 
+          population: number | null; 
+          coordinates_lat: number | null; 
+          coordinates_lng: number | null; 
+        }>()
+        const body: APIResponse<typeof rows.results> = { success: true, data: rows.results }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, cacheKey, jsonStr, 3600)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
+      } catch (err) {
+        // Minimal fallback list
+        const data = [
+          { code: 'US', name: 'United States', region: 'Americas', subregion: 'North America', population: 329484123, coordinates_lat: 38, coordinates_lng: -97 },
+          { code: 'NG', name: 'Nigeria', region: 'Africa', subregion: 'Western Africa', population: 206139587, coordinates_lat: 10, coordinates_lng: 8 }
+        ]
+        return json({ success: true, data, meta: { fallback: true } }, { headers: { ...cors } })
+      }
+    }
+    
+    // Single country details endpoint
+    if (url.pathname.startsWith('/api/countries/') && request.method === 'GET' && 
+        !url.pathname.endsWith('/enhanced') && url.pathname.split('/').length === 4) {
+      const countryCode = url.pathname.split('/').pop()!.toUpperCase()
+      try {
+        if (!env.DB) throw new Error('DB not bound; using mock')
+        const cacheKey = `country:details:${countryCode}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+        const sql = `SELECT * FROM countries WHERE code = ? LIMIT 1`
+        const row = await env.DB.prepare(sql).bind(countryCode).first<any>()
+        if (!row) {
+          return json({ success: false, data: null, error: { code: 'not_found', message: 'Country not found' } }, { status: 404, headers: { ...cors } })
+        }
+        const body: APIResponse<typeof row> = { success: true, data: row }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, cacheKey, jsonStr, 3600)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors } })
+      } catch (err) {
+        return json({ success: false, data: null, error: { code: 'server_error', message: 'Database error' } }, { status: 500, headers: { ...cors } })
+      }
+    }
     return new Response('Not found', { status: 404 })
   }
 }

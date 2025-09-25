@@ -3,6 +3,7 @@ import { useDisaster } from '@/hooks/useDisaster'
 import { ArrowLeft, ExternalLink, MapPin, Globe2, AlertTriangle, Activity } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useEarthquakeReport } from '@/hooks/useEarthquakeReport'
+import { CountryInfo } from './CountryInfo'
 
 function stripHtmlAndDecode(input?: string): string {
   const text = String(input || '')
@@ -615,6 +616,11 @@ export function DisasterDetail() {
                 </div>
               )}
               <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Country Information Card */}
+                {data.country && (
+                  <CountryInfo countryCode={data.country} />
+                )}
+                
                 {data.magnitude && (
                   <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600">
                     <div className="text-xs uppercase font-semibold tracking-wide text-slate-500 dark:text-slate-400 mb-1">Magnitude</div>
