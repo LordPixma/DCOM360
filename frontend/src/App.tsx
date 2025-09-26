@@ -244,25 +244,64 @@ export default function App() {
                 <div role="menu" className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg overflow-hidden z-30">
                   <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{authed ? adminEmail : 'Not signed in'}</div>
                   <div className="border-t border-slate-200 dark:border-slate-700" />
-                  <Link
-                    to="/alerts"
-                    onClick={() => setProfileOpen(false)}
-                    className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                  >
-                    Alert Settings
-                  </Link>
-                  <Link onClick={() => setProfileOpen(false)} to="/admin" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Admin Dashboard</Link>
                   {authed ? (
-                    <button
-                      onClick={() => {
-                        clearAdminEmail(); clearAdminToken(); setAuthed(false); setAdminEmail(''); setProfileOpen(false); nav('/', { replace: true })
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      Sign out
-                    </button>
+                    <>
+                      <Link
+                        to="/profile"
+                        onClick={() => setProfileOpen(false)}
+                        className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        Profile & Settings
+                      </Link>
+                      <Link
+                        to="/alerts"
+                        onClick={() => setProfileOpen(false)}
+                        className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        Alert Management
+                      </Link>
+                      <Link 
+                        onClick={() => setProfileOpen(false)} 
+                        to="/admin" 
+                        className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        Admin Dashboard
+                      </Link>
+                      <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
+                      <button
+                        onClick={() => {
+                          clearAdminEmail(); clearAdminToken(); setAuthed(false); setAdminEmail(''); setProfileOpen(false); nav('/', { replace: true })
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        Sign out
+                      </button>
+                    </>
                   ) : (
-                    <Link onClick={() => setProfileOpen(false)} to="/admin/login" className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50">Sign in</Link>
+                    <>
+                      <Link 
+                        onClick={() => setProfileOpen(false)} 
+                        to="/auth/login" 
+                        className="block px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        Sign in
+                      </Link>
+                      <Link 
+                        onClick={() => setProfileOpen(false)} 
+                        to="/auth/register" 
+                        className="block px-3 py-2 text-sm text-red-600 font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        Create account
+                      </Link>
+                      <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
+                      <Link 
+                        onClick={() => setProfileOpen(false)} 
+                        to="/admin/login" 
+                        className="block px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        Admin Access
+                      </Link>
+                    </>
                   )}
                 </div>
               )}

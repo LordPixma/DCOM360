@@ -3,6 +3,7 @@ export interface Env {
   CACHE?: KVNamespace
   ENV_ORIGIN?: string
   ADMIN_TOKEN?: string
+  JWT_SECRET?: string
 }
 
 export type SeverityDb = 'RED' | 'ORANGE' | 'GREEN'

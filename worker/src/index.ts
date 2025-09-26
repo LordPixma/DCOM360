@@ -674,6 +674,373 @@ export default {
         return json({ success: false, data: null, error: { code: 'server_error', message: 'Database error' } }, { status: 500, headers: { ...cors } })
       }
     }
+
+    // User authentication endpoints
+    if (url.pathname === '/api/auth/register' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({})) as any
+        const { firstName, lastName, email, password } = body
+
+        // Validate input
+        if (!firstName?.trim() || !lastName?.trim() || !email?.trim() || !password) {
+          return json({ success: false, data: null, error: { code: 'validation_error', message: 'All fields are required' } }, { status: 400, headers: { ...cors } })
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (!emailRegex.test(email.toLowerCase())) {
+          return json({ success: false, data: null, error: { code: 'validation_error', message: 'Invalid email format' } }, { status: 400, headers: { ...cors } })
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+          return json({ success: false, data: null, error: { code: 'validation_error', message: 'Password must be at least 8 characters long' } }, { status: 400, headers: { ...cors } })
+        }
+
+        // Check if user already exists
+        const existingUser = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase()).first()
+        if (existingUser) {
+          return json({ success: false, data: null, error: { code: 'user_exists', message: 'User with this email already exists' } }, { status: 409, headers: { ...cors } })
+        }
+
+        // Hash password using Web Crypto API
+        const encoder = new TextEncoder()
+        const data = encoder.encode(password)
+        const salt = crypto.getRandomValues(new Uint8Array(16))
+        const key = await crypto.subtle.importKey('raw', data, { name: 'PBKDF2' }, false, ['deriveBits'])
+        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }, key, 256)
+        const hashArray = new Uint8Array(salt.length + derivedBits.byteLength)
+        hashArray.set(salt)
+        hashArray.set(new Uint8Array(derivedBits), salt.length)
+        const passwordHash = btoa(String.fromCharCode(...hashArray))
+
+        // Create user
+        const result = await env.DB.prepare(`
+          INSERT INTO users (email, password_hash, first_name, last_name)
+          VALUES (?, ?, ?, ?)
+        `).bind(email.toLowerCase(), passwordHash, firstName.trim(), lastName.trim()).run()
+
+        const userId = result.meta.last_row_id
+
+        // Create default preferences
+        await env.DB.prepare(`
+          INSERT INTO user_preferences (user_id)
+          VALUES (?)
+        `).bind(userId).run()
+
+        // Create default alert settings
+        await env.DB.prepare(`
+          INSERT INTO user_alert_settings (user_id)
+          VALUES (?)
+        `).bind(userId).run()
+
+        // Generate JWT token
+        const payload = { userId, email: email.toLowerCase() }
+        const jwtSecret = env.JWT_SECRET || 'default-secret'
+        const now = Math.floor(Date.now() / 1000)
+        const expiresIn = 24 * 60 * 60 // 24 hours
+        const claims = { ...payload, iat: now, exp: now + expiresIn }
+        
+        const header = { alg: 'HS256', typ: 'JWT' }
+        const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const payloadB64 = btoa(JSON.stringify(claims)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const data2 = `${headerB64}.${payloadB64}`
+        const key2 = await crypto.subtle.importKey('raw', encoder.encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+        const signature = await crypto.subtle.sign('HMAC', key2, encoder.encode(data2))
+        const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const token = `${data2}.${signatureB64}`
+
+        // Store session
+        const tokenHashData = encoder.encode(token)
+        const tokenHashBuffer = await crypto.subtle.digest('SHA-256', tokenHashData)
+        const tokenHash = btoa(String.fromCharCode(...new Uint8Array(tokenHashBuffer)))
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+        await env.DB.prepare(`
+          INSERT INTO user_sessions (user_id, token_hash, expires_at)
+          VALUES (?, ?, ?)
+        `).bind(userId, tokenHash, expiresAt).run()
+
+        return json({
+          success: true,
+          data: {
+            user: {
+              id: userId,
+              email: email.toLowerCase(),
+              firstName,
+              lastName
+            },
+            token
+          }
+        }, { headers: { ...cors } })
+
+      } catch (error: any) {
+        return json({ success: false, data: null, error: { code: 'registration_error', message: error.message || 'Failed to create user' } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    if (url.pathname === '/api/auth/login' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => ({})) as any
+        const { email, password } = body
+
+        if (!email?.trim() || !password) {
+          return json({ success: false, data: null, error: { code: 'validation_error', message: 'Email and password are required' } }, { status: 400, headers: { ...cors } })
+        }
+
+        // Get user from database
+        const user = await env.DB.prepare(`
+          SELECT id, email, password_hash, first_name, last_name, is_active
+          FROM users WHERE email = ?
+        `).bind(email.toLowerCase()).first<any>()
+
+        if (!user || !user.is_active) {
+          return json({ success: false, data: null, error: { code: 'invalid_credentials', message: 'Invalid email or password' } }, { status: 401, headers: { ...cors } })
+        }
+
+        // Verify password
+        const encoder = new TextEncoder()
+        const data = encoder.encode(password)
+        const hashBytes = new Uint8Array(atob(user.password_hash).split('').map((char: string) => char.charCodeAt(0)))
+        const salt = hashBytes.slice(0, 16)
+        const storedHash = hashBytes.slice(16)
+        const key = await crypto.subtle.importKey('raw', data, { name: 'PBKDF2' }, false, ['deriveBits'])
+        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }, key, 256)
+        const newHash = new Uint8Array(derivedBits)
+        
+        let match = newHash.length === storedHash.length
+        for (let i = 0; i < newHash.length && match; i++) {
+          if (newHash[i] !== storedHash[i]) match = false
+        }
+
+        if (!match) {
+          return json({ success: false, data: null, error: { code: 'invalid_credentials', message: 'Invalid email or password' } }, { status: 401, headers: { ...cors } })
+        }
+
+        // Generate JWT token
+        const payload = { userId: user.id, email: user.email }
+        const jwtSecret = env.JWT_SECRET || 'default-secret'
+        const now = Math.floor(Date.now() / 1000)
+        const expiresIn = 24 * 60 * 60 // 24 hours
+        const claims = { ...payload, iat: now, exp: now + expiresIn }
+        
+        const header = { alg: 'HS256', typ: 'JWT' }
+        const headerB64 = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const payloadB64 = btoa(JSON.stringify(claims)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const data2 = `${headerB64}.${payloadB64}`
+        const key2 = await crypto.subtle.importKey('raw', encoder.encode(jwtSecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+        const signature = await crypto.subtle.sign('HMAC', key2, encoder.encode(data2))
+        const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+        const token = `${data2}.${signatureB64}`
+
+        // Store session
+        const tokenHashData = encoder.encode(token)
+        const tokenHashBuffer = await crypto.subtle.digest('SHA-256', tokenHashData)
+        const tokenHash = btoa(String.fromCharCode(...new Uint8Array(tokenHashBuffer)))
+        const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+        await env.DB.prepare(`
+          INSERT INTO user_sessions (user_id, token_hash, expires_at)
+          VALUES (?, ?, ?)
+        `).bind(user.id, tokenHash, expiresAt).run()
+
+        // Update last login
+        await env.DB.prepare('UPDATE users SET last_login = datetime("now") WHERE id = ?').bind(user.id).run()
+
+        return json({
+          success: true,
+          data: {
+            user: {
+              id: user.id,
+              email: user.email,
+              firstName: user.first_name,
+              lastName: user.last_name
+            },
+            token
+          }
+        }, { headers: { ...cors } })
+
+      } catch (error: any) {
+        return json({ success: false, data: null, error: { code: 'login_error', message: error.message || 'Login failed' } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
+      try {
+        const authHeader = request.headers.get('Authorization')
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7)
+          const encoder = new TextEncoder()
+          const tokenHashData = encoder.encode(token)
+          const tokenHashBuffer = await crypto.subtle.digest('SHA-256', tokenHashData)
+          const tokenHash = btoa(String.fromCharCode(...new Uint8Array(tokenHashBuffer)))
+          
+          // Remove session from database
+          await env.DB.prepare('DELETE FROM user_sessions WHERE token_hash = ?').bind(tokenHash).run()
+        }
+
+        return json({ success: true, data: { message: 'Logged out successfully' } }, { headers: { ...cors } })
+      } catch (error: any) {
+        return json({ success: false, data: null, error: { code: 'logout_error', message: 'Logout failed' } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    if (url.pathname === '/api/user/profile' && request.method === 'GET') {
+      try {
+        const authHeader = request.headers.get('Authorization')
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return json({ success: false, data: null, error: { code: 'unauthorized', message: 'Authentication required' } }, { status: 401, headers: { ...cors } })
+        }
+
+        const token = authHeader.substring(7)
+        const encoder = new TextEncoder()
+        const tokenHashData = encoder.encode(token)
+        const tokenHashBuffer = await crypto.subtle.digest('SHA-256', tokenHashData)
+        const tokenHash = btoa(String.fromCharCode(...new Uint8Array(tokenHashBuffer)))
+
+        // Get user from session
+        const session = await env.DB.prepare(`
+          SELECT user_id FROM user_sessions 
+          WHERE token_hash = ? AND expires_at > datetime("now")
+        `).bind(tokenHash).first<any>()
+
+        if (!session) {
+          return json({ success: false, data: null, error: { code: 'unauthorized', message: 'Invalid or expired token' } }, { status: 401, headers: { ...cors } })
+        }
+
+        // Get user profile with preferences and alert settings
+        const profile = await env.DB.prepare(`
+          SELECT 
+            u.id, u.email, u.first_name, u.last_name, u.last_login, u.created_at,
+            p.theme, p.language, p.timezone, p.email_notifications, p.push_notifications,
+            a.countries, a.disaster_types, a.severity_levels, a.email_digest, a.instant_alerts
+          FROM users u
+          LEFT JOIN user_preferences p ON u.id = p.user_id
+          LEFT JOIN user_alert_settings a ON u.id = a.user_id
+          WHERE u.id = ? AND u.is_active = 1
+        `).bind(session.user_id).first<any>()
+
+        if (!profile) {
+          return json({ success: false, data: null, error: { code: 'not_found', message: 'User not found' } }, { status: 404, headers: { ...cors } })
+        }
+
+        return json({
+          success: true,
+          data: {
+            id: profile.id,
+            email: profile.email,
+            firstName: profile.first_name,
+            lastName: profile.last_name,
+            lastLogin: profile.last_login,
+            joinedAt: profile.created_at,
+            preferences: {
+              theme: profile.theme || 'system',
+              language: profile.language || 'en',
+              timezone: profile.timezone || 'UTC',
+              emailNotifications: Boolean(profile.email_notifications),
+              pushNotifications: Boolean(profile.push_notifications)
+            },
+            alertSettings: {
+              countries: profile.countries ? JSON.parse(profile.countries) : [],
+              disasterTypes: profile.disaster_types ? JSON.parse(profile.disaster_types) : [],
+              severityLevels: profile.severity_levels ? JSON.parse(profile.severity_levels) : ['RED', 'ORANGE'],
+              emailDigest: Boolean(profile.email_digest),
+              instantAlerts: Boolean(profile.instant_alerts)
+            }
+          }
+        }, { headers: { ...cors } })
+
+      } catch (error: any) {
+        return json({ success: false, data: null, error: { code: 'profile_error', message: error.message || 'Failed to get profile' } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    if (url.pathname === '/api/user/profile' && request.method === 'PUT') {
+      try {
+        const authHeader = request.headers.get('Authorization')
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return json({ success: false, data: null, error: { code: 'unauthorized', message: 'Authentication required' } }, { status: 401, headers: { ...cors } })
+        }
+
+        const token = authHeader.substring(7)
+        const encoder = new TextEncoder()
+        const tokenHashData = encoder.encode(token)
+        const tokenHashBuffer = await crypto.subtle.digest('SHA-256', tokenHashData)
+        const tokenHash = btoa(String.fromCharCode(...new Uint8Array(tokenHashBuffer)))
+
+        // Get user from session
+        const session = await env.DB.prepare(`
+          SELECT user_id FROM user_sessions 
+          WHERE token_hash = ? AND expires_at > datetime("now")
+        `).bind(tokenHash).first<any>()
+
+        if (!session) {
+          return json({ success: false, data: null, error: { code: 'unauthorized', message: 'Invalid or expired token' } }, { status: 401, headers: { ...cors } })
+        }
+
+        const body = await request.json().catch(() => ({})) as any
+        const { firstName, lastName, preferences, alertSettings } = body
+
+        // Update user basic info if provided
+        if (firstName || lastName) {
+          await env.DB.prepare(`
+            UPDATE users SET 
+              first_name = COALESCE(?, first_name),
+              last_name = COALESCE(?, last_name),
+              updated_at = datetime("now")
+            WHERE id = ?
+          `).bind(firstName?.trim(), lastName?.trim(), session.user_id).run()
+        }
+
+        // Update preferences if provided
+        if (preferences) {
+          await env.DB.prepare(`
+            UPDATE user_preferences SET
+              theme = COALESCE(?, theme),
+              language = COALESCE(?, language),
+              timezone = COALESCE(?, timezone),
+              email_notifications = COALESCE(?, email_notifications),
+              push_notifications = COALESCE(?, push_notifications),
+              updated_at = datetime("now")
+            WHERE user_id = ?
+          `).bind(
+            preferences.theme,
+            preferences.language,
+            preferences.timezone,
+            preferences.emailNotifications !== undefined ? (preferences.emailNotifications ? 1 : 0) : null,
+            preferences.pushNotifications !== undefined ? (preferences.pushNotifications ? 1 : 0) : null,
+            session.user_id
+          ).run()
+        }
+
+        // Update alert settings if provided
+        if (alertSettings) {
+          await env.DB.prepare(`
+            UPDATE user_alert_settings SET
+              countries = COALESCE(?, countries),
+              disaster_types = COALESCE(?, disaster_types),
+              severity_levels = COALESCE(?, severity_levels),
+              email_digest = COALESCE(?, email_digest),
+              instant_alerts = COALESCE(?, instant_alerts),
+              updated_at = datetime("now")
+            WHERE user_id = ?
+          `).bind(
+            alertSettings.countries ? JSON.stringify(alertSettings.countries) : null,
+            alertSettings.disasterTypes ? JSON.stringify(alertSettings.disasterTypes) : null,
+            alertSettings.severityLevels ? JSON.stringify(alertSettings.severityLevels) : null,
+            alertSettings.emailDigest !== undefined ? (alertSettings.emailDigest ? 1 : 0) : null,
+            alertSettings.instantAlerts !== undefined ? (alertSettings.instantAlerts ? 1 : 0) : null,
+            session.user_id
+          ).run()
+        }
+
+        return json({ success: true, data: { message: 'Profile updated successfully' } }, { headers: { ...cors } })
+
+      } catch (error: any) {
+        return json({ success: false, data: null, error: { code: 'update_error', message: error.message || 'Failed to update profile' } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
     return new Response('Not found', { status: 404 })
   }
 }
