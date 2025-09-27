@@ -64,6 +64,59 @@ function extractCountryFromDescription(description: string): string | undefined 
   return undefined
 }
 
+// Enhanced function to clean and beautify titles
+function beautifyTitle(title: string): string {
+  if (!title) return title
+  
+  // Remove HTML tags
+  let cleaned = title.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  
+  // Handle special report types
+  if (/world earthquake report/i.test(cleaned)) {
+    const dateMatch = cleaned.match(/(\w+day,?\s*\d{1,2}\s+\w+\s+\d{4})/i)
+    if (dateMatch) {
+      return `🌍 World Earthquake Report - ${dateMatch[1]}`
+    }
+    return '🌍 World Earthquake Report'
+  }
+  
+  if (/volcanic activity/i.test(cleaned)) {
+    const dateMatch = cleaned.match(/(\d{1,2}\s+\w+\s+\d{4})/i)
+    if (dateMatch) {
+      return `🌋 Volcanic Activity Worldwide - ${dateMatch[1]}`
+    }
+    return '🌋 Volcanic Activity Worldwide'
+  }
+  
+  // Add appropriate emoji prefixes based on disaster type
+  if (/earthquake|seismic/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*earthquake.*)/i, '🌍 $1')
+  } else if (/flood|flooding/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*flood.*)/i, '🌊 $1')
+  } else if (/cyclone|hurricane|typhoon/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*(cyclone|hurricane|typhoon).*)/i, '🌪️ $1')
+  } else if (/wildfire|fire/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*fire.*)/i, '🔥 $1')
+  } else if (/drought/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*drought.*)/i, '🏜️ $1')
+  } else if (/landslide|mudslide/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*(landslide|mudslide).*)/i, '⛰️ $1')
+  } else if (/volcano|volcanic|eruption/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*(volcano|volcanic|eruption).*)/i, '🌋 $1')
+  } else if (/epidemic|outbreak|disease|cholera|ebola/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*(epidemic|outbreak|disease|cholera|ebola).*)/i, '🦠 $1')
+  } else if (/heat.*wave|extreme.*heat/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(.*(heat.*wave|extreme.*heat).*)/i, '🌡️ $1')
+  }
+  
+  // Capitalize first letter if not already done
+  if (cleaned && !cleaned.match(/^[🌍🌊🌪️🔥🏜️⛰️🌋🦠🌡️]/)) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+  }
+  
+  return cleaned
+}
+
 function extractGlideNumber(description: string, categories: string[]): string | undefined {
   // Extract GLIDE number from description like: <div class="tag glide">Glide: EP-2025-000157-COD</div>
   const glideMatch = description.match(/<div class="tag glide">Glide:\s*([^<]+)<\/div>/i)
@@ -142,6 +195,61 @@ function extractAffectedPopulation(text: string): number | undefined {
   // Use the existing parseNumberNearKeywords function to extract affected population
   const affected = parseNumberNearKeywords(text, /(affected|displaced|evacuated|people.*affected|affected.*people|population.*affected|affected.*population)/gi)
   return affected
+}
+
+// Enhanced function to create visually appealing structured descriptions
+function createStructuredDescription(rawDescription: string, title: string, disasterType: string): string {
+  if (!rawDescription && !title) return ''
+  
+  // Remove HTML tags and clean up
+  let cleaned = rawDescription.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  
+  // Extract key information
+  const affectedPop = extractAffectedPopulation(`${title} ${rawDescription}`)
+  const magnitude = parseMagnitude(`${title} ${rawDescription}`)
+  const cycloneCat = parseCycloneCategory(`${title} ${rawDescription}`)
+  const deaths = parseNumberNearKeywords(`${title} ${rawDescription}`, /(death|deaths|killed|fatalities|died)/gi)
+  const injured = parseNumberNearKeywords(`${title} ${rawDescription}`, /(injured|injuries)/gi)
+  
+  // Build structured description with visual elements
+  let structured = []
+  
+  // Add key metrics section
+  const metrics = []
+  if (affectedPop) metrics.push(`👥 ${formatNumber(affectedPop)} people affected`)
+  if (deaths) metrics.push(`💀 ${formatNumber(deaths)} casualties`)
+  if (injured) metrics.push(`🚑 ${formatNumber(injured)} injured`)
+  if (magnitude) metrics.push(`📊 Magnitude ${magnitude.toFixed(1)}`)
+  if (cycloneCat) metrics.push(`💨 Category ${cycloneCat}`)
+  
+  if (metrics.length > 0) {
+    structured.push(`📈 **Key Metrics:** ${metrics.join(' • ')}`)
+  }
+  
+  // Add disaster-specific context
+  if (disasterType === 'earthquake' && /world earthquake report/i.test(title)) {
+    structured.push('📋 **Report Type:** Daily global seismic activity summary')
+  } else if (disasterType === 'volcano' && /volcanic activity/i.test(title)) {
+    structured.push('🌋 **Report Type:** Global volcanic monitoring update')
+  }
+  
+  // Add cleaned description if available and not redundant
+  if (cleaned && cleaned.length > 50 && !cleaned.toLowerCase().includes(title.toLowerCase())) {
+    const truncated = cleaned.length > 300 ? cleaned.substring(0, 300) + '...' : cleaned
+    structured.push(`📝 **Details:** ${truncated}`)
+  }
+  
+  return structured.join('\n\n')
+}
+
+// Helper function to format numbers with proper units
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(1)}M`
+  } else if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(1)}K`
+  }
+  return num.toString()
 }
 
 function inferSeverityFromText(text: string, disasterType: string): 'GREEN'|'ORANGE'|'RED' {
@@ -241,37 +349,41 @@ export function parseReliefwebFeed(xml: string): ParsedReliefWebItem[] {
     const guid = String(it.guid?.['#text'] || it.guid || it.link || it.title || '')
     if (!guid) continue
     
-    const title: string = String(it.title || '')
-    const description: string = it.description ? String(it.description) : ''
+    const rawTitle: string = String(it.title || '')
+    const rawDescription: string = it.description ? String(it.description) : ''
     const pub = it.pubDate ? new Date(it.pubDate) : new Date()
     const when = isNaN(pub.getTime()) ? new Date() : pub
     const categories = extractCategories(it)
     
     // Enhanced country extraction - try description first, then categories
-    const countryFromDesc = extractCountryFromDescription(description)
+    const countryFromDesc = extractCountryFromDescription(rawDescription)
     const countryFromCats = extractCountryFromCategories(categories)
     const countryName = (countryFromDesc || countryFromCats)?.replace(/\(.*?\)/g, '').trim()
     
     // Extract GLIDE number for more specific external_id
-    const glideNumber = extractGlideNumber(description, categories)
+    const glideNumber = extractGlideNumber(rawDescription, categories)
     const ext = glideNumber ? `reliefweb:${glideNumber}` : `reliefweb:${guid}`
     
     // Enhanced disaster type inference using all available text
-    const fullText = `${title} ${description} ${categories.join(' ')}`
+    const fullText = `${rawTitle} ${rawDescription} ${categories.join(' ')}`
     const disaster_type = inferTypeFromText(fullText)
     const severity: ParsedReliefWebItem['severity'] = inferSeverityFromText(fullText, disaster_type)
     
     // Extract affected population from all available text
     const affected_population = extractAffectedPopulation(fullText)
+    
+    // Create visually appealing title and description
+    const beautifiedTitle = beautifyTitle(rawTitle)
+    const structuredDescription = createStructuredDescription(rawDescription, rawTitle, disaster_type)
 
     result.push({
       external_id: ext,
       disaster_type,
       severity,
-      title,
+      title: beautifiedTitle,
       country: (countryName && resolveCountryIso2(countryName)) || undefined,
       event_timestamp: when.toISOString(),
-      description,
+      description: structuredDescription || rawDescription, // Fallback to raw if structured is empty
       affected_population,
     })
   }

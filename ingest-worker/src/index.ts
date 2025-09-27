@@ -52,6 +52,71 @@ function normalizeDisasterType(type: string | undefined, title?: string, descrip
   return 'other'
 }
 
+// Purge records older than 24 hours to prevent database growth
+async function purgeOldRecords(env: Env): Promise<{ purgedDisasters: number; purgedHistory: number; purgedLogs: number; error?: string }> {
+  try {
+    const cutoffTimestamp = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // 24 hours ago
+    
+    // Get count of disasters to be purged (for logging)
+    const disasterCountResult = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM disasters WHERE event_timestamp < ? OR updated_at < ?'
+    ).bind(cutoffTimestamp, cutoffTimestamp).first<{ count: number }>()
+    const disastersToPurge = disasterCountResult?.count || 0
+    
+    // Get count of history records to be purged
+    const historyCountResult = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM disaster_history WHERE changed_at < ?'
+    ).bind(cutoffTimestamp).first<{ count: number }>()
+    const historyToPurge = historyCountResult?.count || 0
+    
+    // Get count of processing logs to be purged
+    const logsCountResult = await env.DB.prepare(
+      'SELECT COUNT(*) as count FROM processing_logs WHERE processing_timestamp < ?'
+    ).bind(cutoffTimestamp).first<{ count: number }>()
+    const logsToPurge = logsCountResult?.count || 0
+    
+    // Execute purge operations in a transaction-like manner
+    const results = await Promise.allSettled([
+      // Delete old disasters (older than 24 hours based on event_timestamp or updated_at)
+      env.DB.prepare('DELETE FROM disasters WHERE event_timestamp < ? OR updated_at < ?')
+        .bind(cutoffTimestamp, cutoffTimestamp).run(),
+      
+      // Delete old disaster history records
+      env.DB.prepare('DELETE FROM disaster_history WHERE changed_at < ?')
+        .bind(cutoffTimestamp).run(),
+      
+      // Delete old processing logs
+      env.DB.prepare('DELETE FROM processing_logs WHERE processing_timestamp < ?')
+        .bind(cutoffTimestamp).run()
+    ])
+    
+    // Check if any operations failed
+    const failedOperations = results.filter(result => result.status === 'rejected')
+    if (failedOperations.length > 0) {
+      const errors = failedOperations.map(op => (op as PromiseRejectedResult).reason?.message || 'Unknown error')
+      return { 
+        purgedDisasters: 0, 
+        purgedHistory: 0, 
+        purgedLogs: 0, 
+        error: `Purge operations failed: ${errors.join(', ')}` 
+      }
+    }
+    
+    return {
+      purgedDisasters: disastersToPurge,
+      purgedHistory: historyToPurge,
+      purgedLogs: logsToPurge
+    }
+  } catch (error: any) {
+    return {
+      purgedDisasters: 0,
+      purgedHistory: 0,
+      purgedLogs: 0,
+      error: error?.message || String(error)
+    }
+  }
+}
+
 async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newDisasters: number; updatedDisasters: number; error?: string }>{
   try {
   const normType = normalizeDisasterType(parsed.disaster_type, parsed.title, parsed.description)
@@ -566,6 +631,18 @@ export default {
         } catch (error) {
           console.error('Error processing NASA FIRMS data in scheduled job:', error)
         }
+      }
+      
+      // Purge old records (older than 24 hours) to prevent database growth
+      try {
+        const purgeResult = await purgeOldRecords(env)
+        if (purgeResult.error) {
+          console.error('Purge operation failed:', purgeResult.error)
+        } else {
+          console.log(`Purged ${purgeResult.purgedDisasters} disasters, ${purgeResult.purgedHistory} history records, ${purgeResult.purgedLogs} log entries`)
+        }
+      } catch (error) {
+        console.error('Error during scheduled purge operation:', error)
       }
       
       if (env.CACHE) {

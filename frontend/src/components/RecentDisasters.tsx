@@ -4,6 +4,7 @@ import { Clock, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { safeToISOString, safeToLocaleTimeString, cleanTimestamp } from '@/lib/dateUtils'
 
 export function RecentDisasters() {
   const filters = useAppStore((s) => s.filters)
@@ -31,7 +32,10 @@ export function RecentDisasters() {
   }
 
   const fmtUTC = (ts: string) => {
-    try { return new Date(ts).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC' } catch { return ts }
+    try { 
+      const cleaned = cleanTimestamp(ts)
+      return safeToLocaleTimeString(cleaned, { timeZone: 'UTC', hour12: false }) + ' UTC' 
+    } catch { return ts }
   }
 
   return (
@@ -91,7 +95,7 @@ export function RecentDisasters() {
                               </span>
                             )}
                           </h4>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap" title={new Date(d.occurred_at).toISOString()}>{fmtUTC(d.occurred_at)}</span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap" title={safeToISOString(cleanTimestamp(d.occurred_at))}>{fmtUTC(d.occurred_at)}</span>
                         </div>
                         <div className="text-sm text-slate-600 dark:text-slate-400">
                           {d.type}{d.country ? ` • ${d.country}` : ''}

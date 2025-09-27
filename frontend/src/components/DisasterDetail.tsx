@@ -4,6 +4,7 @@ import { ArrowLeft, ExternalLink, MapPin, Globe2, AlertTriangle, Activity } from
 import { useEffect, useState } from 'react'
 import { useEarthquakeReport } from '@/hooks/useEarthquakeReport'
 import { CountryInfo } from './CountryInfo'
+import { safeToISOString, safeToLocaleDateString, safeToLocaleTimeString, cleanTimestamp } from '@/lib/dateUtils'
 
 function stripHtmlAndDecode(input?: string): string {
   const text = String(input || '')
@@ -60,7 +61,8 @@ function typeIcon(label: string): string {
 function fmtUTC(ts?: string) {
   if (!ts) return ''
   try {
-    return new Date(ts).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC'
+    const cleaned = cleanTimestamp(ts)
+    return safeToLocaleTimeString(cleaned, { timeZone: 'UTC', hour12: false }) + ' UTC'
   } catch { return ts }
 }
 
@@ -258,7 +260,7 @@ export function DisasterDetail() {
                   <div className="flex flex-wrap gap-4 text-sm text-slate-600 dark:text-slate-400">
                     <span className="inline-flex items-center gap-1"><Activity className="h-4 w-4" /> <span aria-hidden>{typeIcon(prettyType(data.type, data.title))}</span> {prettyType(data.type, data.title)}</span>
                     {data.country && <span className="inline-flex items-center gap-1"><Globe2 className="h-4 w-4" /> {data.country}</span>}
-                    <span title={new Date(data.occurred_at).toISOString()}>{fmtUTC(data.occurred_at)}</span>
+                    <span title={safeToISOString(cleanTimestamp(data.occurred_at))}>{fmtUTC(data.occurred_at)}</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -302,9 +304,9 @@ export function DisasterDetail() {
                   {/* Title + timestamp */}
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">World Earthquake Report</h2>
                   <div className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                    <strong>{new Date(data.occurred_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+                    <strong>{safeToLocaleDateString(cleanTimestamp(data.occurred_at), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</strong>
                     <span className="mx-1">-</span>
-                    <span>{new Date(data.occurred_at).toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false })} UTC</span>
+                    <span>{safeToLocaleTimeString(cleanTimestamp(data.occurred_at), { timeZone: 'UTC', hour12: false })} UTC</span>
                   </div>
 
                   {/* Executive Summary */}

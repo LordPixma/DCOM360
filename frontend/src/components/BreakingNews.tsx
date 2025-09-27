@@ -1,6 +1,7 @@
 import { Radio } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { api, type APIResponse } from '@/lib/api'
+import { safeToISOString, safeToLocaleTimeString, cleanTimestamp } from '@/lib/dateUtils'
 
 // Placeholder breaking news card – data source (RSS/API) to be integrated later
 export function BreakingNews() {
@@ -23,7 +24,8 @@ export function BreakingNews() {
 
   const fmtUTC = (ts: string) => {
     try {
-      return new Date(ts).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC'
+      const cleaned = cleanTimestamp(ts)
+      return safeToLocaleTimeString(cleaned, { timeZone: 'UTC', hour12: false }) + ' UTC'
     } catch {
       return ts
     }
@@ -52,7 +54,7 @@ export function BreakingNews() {
               <div className="font-medium text-slate-900 dark:text-white">{it.title}</div>
             )}
             <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
-              <span title={new Date(it.ts).toISOString()}>{fmtUTC(it.ts)}</span>
+              <span title={safeToISOString(cleanTimestamp(it.ts))}>{fmtUTC(it.ts)}</span>
               {it.source && (
                 <a href={it.source} target="_blank" rel="noreferrer" className="opacity-70 hover:underline">
                   {(() => { try { return new URL(it.source).hostname.replace('www.', '') } catch { return it.source } })()}

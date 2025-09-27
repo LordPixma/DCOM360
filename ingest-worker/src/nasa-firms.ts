@@ -27,6 +27,7 @@ export function parseFIRMSResponse(csvContent: string): ParsedFIRMSItem[] {
     // latitude,longitude,brightness,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,bright_t31,frp,daynight
     const headers = lines[0].split(',').map(h => h.trim());
     const disasters: ParsedFIRMSItem[] = [];
+    let filteredCount = 0;
 
     console.log(`Found ${lines.length - 1} fire detection records`);
 
@@ -43,6 +44,8 @@ export function parseFIRMSResponse(csvContent: string): ParsedFIRMSItem[] {
         const disaster = parseFIRMSRecord(record);
         if (disaster) {
           disasters.push(disaster);
+        } else {
+          filteredCount++;
         }
       } catch (error) {
         console.error(`Error parsing FIRMS record at line ${i}:`, error);
@@ -50,7 +53,7 @@ export function parseFIRMSResponse(csvContent: string): ParsedFIRMSItem[] {
       }
     }
 
-    console.log(`Successfully parsed ${disasters.length} fire detections`);
+    console.log(`Successfully parsed ${disasters.length} high-confidence fire detections (filtered out ${filteredCount} medium/low confidence detections)`);
     return disasters;
   } catch (error) {
     console.error('Error parsing FIRMS CSV response:', error);
@@ -75,41 +78,73 @@ function parseFIRMSRecord(record: Record<string, string>): ParsedFIRMSItem | nul
       return null;
     }
 
-    // Create timestamp from date and time
+    // Validate and create timestamp from date and time
+    if (acq_date.length < 10) {
+      console.warn(`Invalid date format: ${acq_date}`);
+      return null;
+    }
+
+    // Pad time to 4 digits (e.g., "739" -> "0739")
+    const timeStr = acq_time.padStart(4, '0');
+    if (timeStr.length !== 4) {
+      console.warn(`Invalid time format: ${acq_time}`);
+      return null;
+    }
+
     const year = acq_date.substring(0, 4);
     const month = acq_date.substring(5, 7);
     const day = acq_date.substring(8, 10);
-    const hour = acq_time.substring(0, 2);
-    const minute = acq_time.substring(2, 4);
+    const hour = timeStr.substring(0, 2);
+    const minute = timeStr.substring(2, 4);
+
+    // Validate date components
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(month, 10);
+    const dayNum = parseInt(day, 10);
+    const hourNum = parseInt(hour, 10);
+    const minuteNum = parseInt(minute, 10);
+
+    if (yearNum < 2000 || yearNum > 2030 || monthNum < 1 || monthNum > 12 || 
+        dayNum < 1 || dayNum > 31 || hourNum < 0 || hourNum > 23 || 
+        minuteNum < 0 || minuteNum > 59) {
+      console.warn(`Invalid date/time values: ${year}-${month}-${day} ${hour}:${minute}`);
+      return null;
+    }
+
+    // Create and validate timestamp
     const timestamp = `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+    
+    // Test that the timestamp can be parsed as a valid date
+    const testDate = new Date(timestamp);
+    if (isNaN(testDate.getTime())) {
+      console.warn(`Invalid timestamp created: ${timestamp}`);
+      return null;
+    }
 
     // Generate unique external ID based on coordinates and timestamp
     const external_id = `firms-${latitude.toFixed(4)}-${longitude.toFixed(4)}-${acq_date}-${acq_time}`;
 
+    // Filter out medium and low confidence fire detection reports
+    // Only process high confidence detections (≥80%) or high FRP fires (≥100 MW)
+    if (confidence < 80 && frp < 100) {
+      return null; // Skip medium and low confidence detections
+    }
+
     // Determine severity based on confidence, brightness, and FRP
-    let severity: 'GREEN' | 'ORANGE' | 'RED' = 'GREEN';
+    let severity: 'GREEN' | 'ORANGE' | 'RED' = 'RED'; // All remaining fires are high confidence
     
-    // High confidence (>80%) or high FRP (>100 MW) indicates major fire
+    // High confidence (≥80%) or high FRP (≥100 MW) indicates major fire
     if (confidence >= 80 || frp >= 100) {
       severity = 'RED';
-    } 
-    // Medium confidence (50-79%) or medium FRP (50-99 MW) indicates moderate fire
-    else if (confidence >= 50 || frp >= 50) {
-      severity = 'ORANGE';
-    }
-    // Low confidence (<50%) or low FRP (<50 MW) indicates minor fire/smoke
-    else {
-      severity = 'GREEN';
     }
 
-    // Create descriptive title
-    const confidenceDesc = confidence >= 80 ? 'High' : confidence >= 50 ? 'Medium' : 'Low';
-    const title = `Active Fire Detection (${confidenceDesc} Confidence)`;
+    // Create descriptive title for high confidence detections only
+    const title = `Active Fire Detection (High Confidence)`;
 
-    // Create description with fire characteristics
+    // Create description with fire characteristics (high confidence detections only)
     const description = [
       `Satellite: ${satellite} ${instrument}`,
-      `Confidence: ${confidence}%`,
+      `Confidence: ${confidence}% (High)`,
       brightness > 0 ? `Brightness: ${brightness.toFixed(1)}K` : null,
       frp > 0 ? `Fire Radiative Power: ${frp.toFixed(1)} MW` : null,
       `Detection: ${acq_date} ${acq_time} UTC`

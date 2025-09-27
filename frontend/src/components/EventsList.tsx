@@ -3,6 +3,7 @@ import { type Disaster } from '@/hooks/useDisasters'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useDisastersWithMeta } from '@/hooks/useDisastersWithMeta'
 import { ExternalLink, X } from 'lucide-react'
+import { safeParseDate, safeToLocaleTimeString, cleanTimestamp } from '@/lib/dateUtils'
 
 function stripHtmlAndDecode(input: string): string {
   const text = String(input || '')
@@ -60,14 +61,17 @@ function typeIcon(label: string): string {
 
 function formatUTC(iso: string): string {
   try {
-    return new Date(iso).toLocaleString('en-GB', { timeZone: 'UTC', hour12: false }) + ' UTC'
+    const cleaned = cleanTimestamp(iso)
+    return safeToLocaleTimeString(cleaned, { timeZone: 'UTC', hour12: false }) + ' UTC'
   } catch { return iso }
 }
 
 function formatRelative(dateIso: string): string {
   const now = Date.now()
-  const t = new Date(dateIso).getTime()
-  if (isNaN(t)) return dateIso
+  const cleaned = cleanTimestamp(dateIso)
+  const date = safeParseDate(cleaned)
+  const t = date?.getTime()
+  if (!t || isNaN(t)) return dateIso
   const diff = Math.max(0, Math.floor((now - t) / 1000))
   if (diff < 60) return `${diff}s ago`
   const m = Math.floor(diff / 60)

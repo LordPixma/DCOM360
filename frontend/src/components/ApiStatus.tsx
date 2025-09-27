@@ -1,10 +1,12 @@
 import React from 'react'
 import { useApiStatus } from '@/hooks/useApiStatus'
+import { safeToISOString, safeToLocaleTimeString, cleanTimestamp } from '@/lib/dateUtils'
 
 function fmtUTC(ts?: string) {
   if (!ts) return ''
   try {
-    return new Date(ts).toLocaleTimeString('en-GB', {
+    const cleaned = cleanTimestamp(ts)
+    return safeToLocaleTimeString(cleaned, {
       hour12: false,
       timeZone: 'UTC',
       hour: '2-digit',
@@ -23,10 +25,10 @@ export function ApiStatus() {
       <span className={`inline-block h-2.5 w-2.5 rounded-full ${dot} animate-pulse`} aria-label={online ? 'Online' : 'Offline'} />
       <span>{isLoading ? 'Checking API…' : online ? 'Live' : 'Offline'}</span>
       {latestEventAt && (
-        <span className="opacity-70" title={new Date(latestEventAt).toISOString()}>• Data {fmtUTC(latestEventAt)}</span>
+        <span className="opacity-70" title={safeToISOString(cleanTimestamp(latestEventAt))}>• Data {fmtUTC(latestEventAt)}</span>
       )}
       {lastChecked && (
-        <span className="opacity-70" title={new Date(lastChecked).toISOString()}>• API {fmtUTC(lastChecked)}</span>
+        <span className="opacity-70" title={safeToISOString(cleanTimestamp(lastChecked))}>• API {fmtUTC(lastChecked)}</span>
       )}
     </div>
   )

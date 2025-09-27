@@ -41,6 +41,20 @@ export function DisasterMap() {
     }
   }, [cfg?.map_style])
 
+  // Disaster type icons
+  const getDisasterIcon = (type: string): string => {
+    switch (type) {
+      case 'earthquake': return '🌍'
+      case 'cyclone': return '🌪️'
+      case 'flood': return '🌊'
+      case 'wildfire': return '🔥'
+      case 'volcano': return '🌋'
+      case 'landslide': return '⛰️'
+      case 'drought': return '🏜️'
+      default: return '⚠️'
+    }
+  }
+
   // Render markers when data changes
   useEffect(() => {
     const map = mapRef.current
@@ -59,12 +73,17 @@ export function DisasterMap() {
       const size = d.severity === 'red' ? 40 : d.severity === 'yellow' ? 32 : 24
       const color = d.severity === 'red' ? '#ef4444' : d.severity === 'yellow' ? '#f59e0b' : '#10b981'
       const pulse = d.severity !== 'green' ? ' animate-pulse' : ''
+      const icon = getDisasterIcon(d.type)
       
-      el.className = 'rounded-full shadow-lg border-2 border-white cursor-pointer transition-transform hover:scale-110' + pulse
+      el.className = 'rounded-full shadow-lg border-2 border-white cursor-pointer transition-transform hover:scale-110 flex items-center justify-center' + pulse
       el.style.width = `${size}px`
       el.style.height = `${size}px`
       el.style.background = `radial-gradient(circle, ${color}, ${color}dd)`
       el.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)'
+      el.style.fontSize = `${Math.floor(size * 0.5)}px`
+      el.style.color = 'white'
+      el.style.textShadow = '0 1px 2px rgba(0,0,0,0.5)'
+      el.textContent = icon
       
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([d.longitude!, d.latitude!])
@@ -76,9 +95,12 @@ export function DisasterMap() {
             closeOnClick: false
           }).setHTML(
             `<div class="p-3">
-              <div class="font-bold text-slate-900 mb-2">${d.title}</div>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xl">${icon}</span>
+                <div class="font-bold text-slate-900">${d.title}</div>
+              </div>
               <div class="space-y-1 text-sm text-slate-600">
-                <div><span class="font-medium">Type:</span> ${d.type}</div>
+                <div><span class="font-medium">Type:</span> ${d.type.charAt(0).toUpperCase() + d.type.slice(1)}</div>
                 <div><span class="font-medium">Location:</span> ${d.country ?? 'Unknown'}</div>
                 <div><span class="font-medium">Severity:</span> 
                   <span class="inline-flex items-center gap-1">
@@ -86,6 +108,7 @@ export function DisasterMap() {
                     ${d.severity === 'red' ? 'Critical' : d.severity === 'yellow' ? 'Warning' : 'Monitoring'}
                   </span>
                 </div>
+                ${d.source ? `<div><span class="font-medium">Source:</span> ${d.source.toUpperCase()}</div>` : ''}
               </div>
             </div>`
           )
