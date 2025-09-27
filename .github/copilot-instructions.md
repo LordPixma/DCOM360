@@ -43,7 +43,7 @@ This repository is **Flare360**, a real-time disaster monitoring dashboard built
 
 - **Email/RSS ingestion:**  
   - Email via Cloudflare Routing, plain text format (see below)
-  - RSS endpoints: `/ingest/gdacs`, `/ingest/reliefweb`, `/ingest/volcano`
+  - RSS endpoints: `/ingest/gdacs`, `/ingest/reliefweb`
   - Auth: `INGEST_SECRET` bearer token
 - **Disaster type normalization:**  
   - Types: `earthquake`, `cyclone`, `flood`, `wildfire`, `landslide`, `drought`, `other`
