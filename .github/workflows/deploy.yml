@@ -170,8 +170,34 @@ jobs:
             echo "Failed after $max_attempts attempts."
             exit 1
           fi
+      - name: Trigger USGS ingest
+        run: |
+          set -euo pipefail
+          sleep 2  # Brief delay between RSS feeds
+          : "${INGEST_TOKEN:?Missing INGEST_TOKEN secret}"
+          max_attempts=5
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            code=$(curl -s -o resp_usgs.json -w "%{http_code}" -X POST "${{ steps.prep.outputs.ing_url }}/ingest/usgs" -H "authorization: Bearer ${INGEST_TOKEN}" || true)
+            echo "USGS HTTP_CODE=$code"
+            if [ "$code" = "200" ] && grep -q '"success":\s*true' resp_usgs.json; then
+              break
+            fi
+            if grep -q 'Too many API requests' resp_usgs.json || grep -q 'INGEST_ERROR' resp_usgs.json; then
+              echo "Rate limited or transient error. Retrying in $((attempt*2)) seconds..."
+              sleep $((attempt*2))
+              attempt=$((attempt+1))
+            else
+              echo "Response body:" && cat resp_usgs.json || true
+              exit 1
+            fi
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "Failed after $max_attempts attempts."
+            exit 1
+          fi
 
-# VolcanoDiscovery RSS feed removed - only GDACS and ReliefWeb feeds are now supported
+# VolcanoDiscovery RSS feed removed - GDACS, ReliefWeb, and USGS feeds are now supported
 
   pages-deploy:
     name: Deploy Pages (production)
