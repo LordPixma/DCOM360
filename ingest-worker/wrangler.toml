@@ -19,6 +19,7 @@ INGEST_TOKEN = "dev-token-123" # set via `wrangler secret put INGEST_TOKEN` in p
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
+NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
 
 [env.staging]
 [env.staging.vars]
@@ -26,6 +27,7 @@ INGEST_TOKEN = "dev-token-123"
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
+NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
@@ -40,6 +42,7 @@ id = "46818e79770044efa2e863ca0b0f465a"
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
+NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
 INGEST_TOKEN = ""
 [[env.production.d1_databases]]
 binding = "DB"

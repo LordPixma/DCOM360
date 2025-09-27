@@ -2,6 +2,7 @@ import { parseEmail, parseEmailMulti, type ParsedEmail } from './parser'
 import { parseGdacsFeed } from './gdacs'
 import { parseReliefwebFeed } from './reliefweb'
 import { parseUSGSFeed } from './usgs'
+import { parseNOAACAPFeed } from './noaa-cap'
 import PostalMime from 'postal-mime'
 
 type Env = {
@@ -12,6 +13,7 @@ type Env = {
   GDACS_RSS_URL?: string
   RELIEFWEB_RSS_URL?: string
   USGS_RSS_URL?: string
+  NOAA_CAP_RSS_URL?: string
   ALLOW_FROM?: string
 }
 
@@ -283,6 +285,67 @@ export default {
       }
     }
 
+    // Manual trigger to pull NOAA CAP alerts now
+    if (req.method === 'POST' && pathname === '/ingest/noaa-cap') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        const rssUrl = env.NOAA_CAP_RSS_URL || 'https://alerts.weather.gov/cap/us.atom'
+        const res = await fetch(rssUrl, { 
+          headers: {
+            'User-Agent': 'Flare360-DisasterMonitor/1.0 (+https://flare360.samuel-1e5.workers.dev)',
+            'Accept': 'application/atom+xml, application/xml, text/xml, */*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Cache-Control': 'no-cache'
+          },
+          cf: { cacheTtl: 300, cacheEverything: true } as any 
+        })
+        if (!res.ok) return json({ success: false, error: { code: 'UPSTREAM', message: `NOAA CAP fetch ${res.status}` } }, { status: 502 })
+        const xml = await res.text()
+        const items = parseNOAACAPFeed(xml).slice(0, 20) // Process more CAP alerts since they're lighter
+        let newDisasters = 0
+        let updatedDisasters = 0
+        const errors: Array<{ id: string; error: string }> = []
+        
+        // Process items in parallel chunks
+        const processChunk = async (chunk: any[]) => {
+          const results = await Promise.allSettled(chunk.map(p => processParsedEmail(p, env)))
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i]
+            if (result.status === 'fulfilled') {
+              const r = result.value
+              newDisasters += r.newDisasters
+              updatedDisasters += r.updatedDisasters
+              if (r.error) errors.push({ id: chunk[i].external_id, error: r.error })
+            } else {
+              errors.push({ id: chunk[i].external_id, error: result.reason?.message || 'Processing failed' })
+            }
+          }
+        }
+        
+        // Process in chunks of 5 for CAP alerts (they're lighter than earthquake data)
+        for (let i = 0; i < items.length; i += 5) {
+          const chunk = items.slice(i, i + 5)
+          await processChunk(chunk)
+        }
+        if (env.CACHE) {
+          const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
+          await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+        }
+        if (errors.length) {
+          return json({ success: false, error: { code: 'PARTIAL_FAIL', message: 'Some items failed', details: errors }, data: { processed: items.length, newDisasters, updatedDisasters } }, { status: 207 })
+        }
+        return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
+      } catch (err: any) {
+        const message = err?.message || String(err)
+        return json({ success: false, error: { code: 'INGEST_ERROR', message } }, { status: 500 })
+      }
+    }
+
   if (req.method === 'POST' && pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
@@ -377,17 +440,27 @@ export default {
     }
   }
   ,
-  // Scheduled cron to pull GDACS, ReliefWeb, and USGS feeds periodically
+  // Scheduled cron to pull GDACS, ReliefWeb, USGS, and NOAA CAP feeds periodically
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
-      // Pull GDACS, ReliefWeb, and USGS feeds in parallel
+      // Pull GDACS, ReliefWeb, USGS, and NOAA CAP feeds in parallel
       const gdacsUrl = env.GDACS_RSS_URL || 'https://www.gdacs.org/xml/rss.xml'
       const reliefUrl = env.RELIEFWEB_RSS_URL || 'https://reliefweb.int/disasters/rss.xml'  
       const usgsUrl = env.USGS_RSS_URL || 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom'
-      const [gdacsRes, reliefRes, usgsRes] = await Promise.all([
+      const noaaCapUrl = env.NOAA_CAP_RSS_URL || 'https://alerts.weather.gov/cap/us.atom'
+      const [gdacsRes, reliefRes, usgsRes, noaaCapRes] = await Promise.all([
         fetch(gdacsUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
         fetch(reliefUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
         fetch(usgsUrl, { cf: { cacheTtl: 300, cacheEverything: true } as any }),
+        fetch(noaaCapUrl, { 
+          headers: {
+            'User-Agent': 'Flare360-DisasterMonitor/1.0 (+https://flare360.samuel-1e5.workers.dev)',
+            'Accept': 'application/atom+xml, application/xml, text/xml, */*',
+            'Accept-Encoding': 'gzip, deflate',
+            'Cache-Control': 'no-cache'
+          },
+          cf: { cacheTtl: 300, cacheEverything: true } as any 
+        }),
       ])
       if (gdacsRes.ok) {
         const xml = await gdacsRes.text()
@@ -402,6 +475,11 @@ export default {
       if (usgsRes.ok) {
         const xml = await usgsRes.text()
         const items = parseUSGSFeed(xml)
+        await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+      }
+      if (noaaCapRes.ok) {
+        const xml = await noaaCapRes.text()
+        const items = parseNOAACAPFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
       }
       if (env.CACHE) {
