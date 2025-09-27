@@ -3,6 +3,7 @@ import { parseGdacsFeed } from './gdacs'
 import { parseReliefwebFeed } from './reliefweb'
 import { parseUSGSFeed } from './usgs'
 import { parseNOAACAPFeed } from './noaa-cap'
+import { fetchFIRMSGlobalData, type ParsedFIRMSItem } from './nasa-firms'
 import PostalMime from 'postal-mime'
 
 type Env = {
@@ -14,6 +15,7 @@ type Env = {
   RELIEFWEB_RSS_URL?: string
   USGS_RSS_URL?: string
   NOAA_CAP_RSS_URL?: string
+  NASA_FIRMS_MAP_KEY?: string
   ALLOW_FROM?: string
 }
 
@@ -346,6 +348,71 @@ export default {
       }
     }
 
+    // NASA FIRMS fire detection endpoint
+    if (req.method === 'POST' && pathname === '/ingest/nasa-firms') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        
+        const mapKey = env.NASA_FIRMS_MAP_KEY
+        if (!mapKey) {
+          return json({ success: false, error: { code: 'CONFIG_ERROR', message: 'NASA_FIRMS_MAP_KEY not configured' } }, { status: 500 })
+        }
+        
+        console.log('Fetching NASA FIRMS fire detection data...')
+        const items = await fetchFIRMSGlobalData(mapKey, 1) // Last 24 hours
+        
+        let newDisasters = 0
+        let updatedDisasters = 0
+        const errors: Array<{ id: string; error: string }> = []
+        
+        // Process items in parallel chunks (smaller chunks for fire data since there can be many)
+        const processChunk = async (chunk: ParsedFIRMSItem[]) => {
+          const results = await Promise.allSettled(chunk.map(p => processParsedEmail(p, env)))
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i]
+            if (result.status === 'fulfilled') {
+              const r = result.value
+              newDisasters += r.newDisasters
+              updatedDisasters += r.updatedDisasters
+              if (r.error) errors.push({ id: chunk[i].external_id, error: r.error })
+            } else {
+              errors.push({ id: chunk[i].external_id, error: result.reason?.message || 'Processing failed' })
+            }
+          }
+        }
+        
+        // Process in smaller chunks of 3 for fire data (can be high volume)
+        for (let i = 0; i < items.length; i += 3) {
+          const chunk = items.slice(i, i + 3)
+          await processChunk(chunk)
+          
+          // Add small delay between chunks to avoid overwhelming the database
+          if (i + 3 < items.length) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        
+        // Clear cache
+        if (env.CACHE) {
+          const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
+          await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
+        }
+        
+        if (errors.length) {
+          return json({ success: false, error: { code: 'PARTIAL_FAIL', message: 'Some items failed', details: errors }, data: { processed: items.length, newDisasters, updatedDisasters } }, { status: 207 })
+        }
+        return json({ success: true, data: { processed: items.length, newDisasters, updatedDisasters } })
+      } catch (err: any) {
+        const message = err?.message || String(err)
+        return json({ success: false, error: { code: 'INGEST_ERROR', message } }, { status: 500 })
+      }
+    }
+
   if (req.method === 'POST' && pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
@@ -440,7 +507,7 @@ export default {
     }
   }
   ,
-  // Scheduled cron to pull GDACS, ReliefWeb, USGS, and NOAA CAP feeds periodically
+  // Scheduled cron to pull GDACS, ReliefWeb, USGS, NOAA CAP, and NASA FIRMS feeds periodically
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
       // Pull GDACS, ReliefWeb, USGS, and NOAA CAP feeds in parallel
@@ -482,6 +549,25 @@ export default {
         const items = parseNOAACAPFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
       }
+      
+      // Fetch NASA FIRMS fire data if MAP_KEY is configured
+      if (env.NASA_FIRMS_MAP_KEY) {
+        try {
+          const firmsItems = await fetchFIRMSGlobalData(env.NASA_FIRMS_MAP_KEY, 1)
+          // Process in smaller batches to avoid overwhelming the database
+          for (let i = 0; i < firmsItems.length; i += 5) {
+            const batch = firmsItems.slice(i, i + 5)
+            await Promise.all(batch.map((p) => processParsedEmail(p as any, env)))
+            // Small delay between batches
+            if (i + 5 < firmsItems.length) {
+              await new Promise(resolve => setTimeout(resolve, 200))
+            }
+          }
+        } catch (error) {
+          console.error('Error processing NASA FIRMS data in scheduled job:', error)
+        }
+      }
+      
       if (env.CACHE) {
         const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
         await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))

@@ -20,6 +20,7 @@ GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
 NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
+NASA_FIRMS_MAP_KEY = "a7d8b367baa77d5697b0f6768d75f349"
 
 [env.staging]
 [env.staging.vars]
@@ -28,6 +29,7 @@ GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
 RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
 NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
+NASA_FIRMS_MAP_KEY = "a7d8b367baa77d5697b0f6768d75f349"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
@@ -44,6 +46,7 @@ RELIEFWEB_RSS_URL = "https://reliefweb.int/disasters/rss.xml"
 USGS_RSS_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_month.atom"
 NOAA_CAP_RSS_URL = "https://alerts.weather.gov/cap/us.atom"
 INGEST_TOKEN = ""
+NASA_FIRMS_MAP_KEY = "a7d8b367baa77d5697b0f6768d75f349"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "dcom360-db"
