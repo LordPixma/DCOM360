@@ -522,7 +522,10 @@ export default {
       const severity = url.searchParams.get('severity') || undefined
       const country = url.searchParams.get('country') || undefined
       const q = url.searchParams.get('q') || undefined
-      const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 200)
+      const requestedLimit = parseInt(url.searchParams.get('limit') || '50', 10)
+      // Use higher default limit for "All Types" queries to ensure diversity across disaster types
+      const defaultLimit = type ? 50 : 500
+      const limit = Math.min(requestedLimit || defaultLimit, 1000)
       const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0)
 
       try {
@@ -544,18 +547,43 @@ export default {
           params.push(pat, pat, pat) 
         }
 
-        // Combined query for both count and data using window functions
-        const combinedSql = `
-          WITH filtered AS (
-            SELECT id, external_id, disaster_type, severity, title, country, 
-                   coordinates_lat, coordinates_lng, event_timestamp, affected_population,
-                   COUNT(*) OVER() as total_count
-            FROM disasters ${baseWhere}
-            ORDER BY event_timestamp DESC
-            LIMIT ? OFFSET ?
-          )
-          SELECT * FROM filtered
-        `
+        // For "All Types" queries, use diversified sampling to ensure representation
+        let combinedSql: string
+        if (!type && !severity && !country && !q) {
+          // Diversified query: get recent disasters from each type, then combine
+          combinedSql = `
+            WITH recent_by_type AS (
+              SELECT id, external_id, disaster_type, severity, title, country, 
+                     coordinates_lat, coordinates_lng, event_timestamp, affected_population,
+                     ROW_NUMBER() OVER (PARTITION BY disaster_type ORDER BY event_timestamp DESC) as rn
+              FROM disasters ${baseWhere}
+            ),
+            filtered AS (
+              SELECT id, external_id, disaster_type, severity, title, country, 
+                     coordinates_lat, coordinates_lng, event_timestamp, affected_population,
+                     COUNT(*) OVER() as total_count
+              FROM recent_by_type
+              WHERE rn <= 100  -- Get up to 100 recent disasters per type
+              ORDER BY event_timestamp DESC
+              LIMIT ? OFFSET ?
+            )
+            SELECT * FROM filtered
+          `
+        } else {
+          // Standard query for filtered requests
+          combinedSql = `
+            WITH filtered AS (
+              SELECT id, external_id, disaster_type, severity, title, country, 
+                     coordinates_lat, coordinates_lng, event_timestamp, affected_population,
+                     COUNT(*) OVER() as total_count
+              FROM disasters ${baseWhere}
+              ORDER BY event_timestamp DESC
+              LIMIT ? OFFSET ?
+            )
+            SELECT * FROM filtered
+          `
+        }
+        
         const allParams = [...params, limit, offset]
         const rows = await env.DB.prepare(combinedSql).bind(...allParams).all<DisasterRow & { total_count: number }>()
         const total = rows.results[0]?.total_count ?? 0
