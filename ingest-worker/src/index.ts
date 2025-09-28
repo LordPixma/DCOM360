@@ -38,7 +38,7 @@ function json(data: unknown, init: ResponseInit = {}) {
 }
 
 // Coerce incoming disaster types to a known set for consistency in DB and API
-function normalizeDisasterType(type: string | undefined, title?: string, description?: string): 'earthquake'|'cyclone'|'flood'|'wildfire'|'landslide'|'drought'|'other' {
+function normalizeDisasterType(type: string | undefined, title?: string, description?: string): 'earthquake'|'cyclone'|'flood'|'wildfire'|'landslide'|'drought'|'epidemic'|'other' {
   const v = (type || '').toLowerCase().trim()
   const text = `${title || ''} ${description || ''}`.toLowerCase()
   const hay = (v + ' ' + text)
@@ -50,8 +50,11 @@ function normalizeDisasterType(type: string | undefined, title?: string, descrip
   if (/landslide|mudslide|debris\s+flow|slope\s+failure/.test(hay)) return 'landslide'
   if (/drought|water\s+scarcity|dry\s+spell/.test(hay)) return 'drought'
   
-  // Map additional ReliefWeb types to 'other'
-  if (/volcano|volcanic|eruption|heatwave|heat\s+wave|epidemic|cholera|ebola|diphtheria|outbreak/.test(hay)) return 'other'
+  // Health events: outbreaks, epidemics, and disease emergencies
+  if (/epidemic|outbreak|ebola|cholera|measles|malaria|dengue|yellow\s+fever|zika|chikungunya|nipah|marburg|lassa|mers|sars|avian\s+flu|h5n1|h1n1|polio|diphtheria|meningitis|rabies|anthrax|sudan\s+virus|disease\s+outbreak/.test(hay)) return 'epidemic'
+  
+  // Map other types
+  if (/volcano|volcanic|eruption|heatwave|heat\s+wave/.test(hay)) return 'other'
   
   return 'other'
 }

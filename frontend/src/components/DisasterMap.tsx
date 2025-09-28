@@ -48,6 +48,7 @@ export function DisasterMap() {
       case 'cyclone': return '🌪️'
       case 'flood': return '🌊'
       case 'wildfire': return '🔥'
+      case 'epidemic': return '🦠'
       case 'volcano': return '🌋'
       case 'landslide': return '⛰️'
       case 'drought': return '🏜️'

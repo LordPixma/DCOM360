@@ -16,6 +16,7 @@ const TYPES = [
   { value: 'earthquake', label: 'Earthquake' },
   { value: 'wildfire', label: 'Wildfire' },
   { value: 'cyclone', label: 'Cyclone' },
+  { value: 'epidemic', label: 'Health Emergency' },
 ]
 
 export function Filters() {
