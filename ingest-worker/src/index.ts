@@ -85,6 +85,13 @@ async function purgeOldRecords(env: Env): Promise<{ purgedDisasters: number; pur
       env.DB.prepare('DELETE FROM disasters WHERE event_timestamp < ? OR updated_at < ?')
         .bind(cutoffTimestamp, cutoffTimestamp).run(),
       
+      // Delete low-confidence fire detections immediately (confidence < 85%)
+      env.DB.prepare(`DELETE FROM disasters WHERE disaster_type = 'wildfire' AND external_id LIKE 'firms-%' AND (
+        description LIKE '%Confidence: 1%' OR description LIKE '%Confidence: 2%' OR description LIKE '%Confidence: 3%' OR
+        description LIKE '%Confidence: 4%' OR description LIKE '%Confidence: 5%' OR description LIKE '%Confidence: 6%' OR
+        description LIKE '%Confidence: 7%' OR description LIKE '%Confidence: 8%' OR description LIKE '%Low%' OR description LIKE '%Medium%'
+      )`).run(),
+      
       // Delete old disaster history records
       env.DB.prepare('DELETE FROM disaster_history WHERE changed_at < ?')
         .bind(cutoffTimestamp).run(),

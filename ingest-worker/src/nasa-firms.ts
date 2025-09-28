@@ -53,7 +53,7 @@ export function parseFIRMSResponse(csvContent: string): ParsedFIRMSItem[] {
       }
     }
 
-    console.log(`Successfully parsed ${disasters.length} high-confidence fire detections (filtered out ${filteredCount} medium/low confidence detections)`);
+    console.log(`Successfully parsed ${disasters.length} ultra-high-confidence fire detections (≥85% confidence, filtered out ${filteredCount} medium/low confidence detections)`);
     return disasters;
   } catch (error) {
     console.error('Error parsing FIRMS CSV response:', error);
@@ -125,29 +125,35 @@ function parseFIRMSRecord(record: Record<string, string>): ParsedFIRMSItem | nul
     const external_id = `firms-${latitude.toFixed(4)}-${longitude.toFixed(4)}-${acq_date}-${acq_time}`;
 
     // Filter out medium and low confidence fire detection reports
-    // Only process high confidence detections (≥80%) or high FRP fires (≥100 MW)
-    if (confidence < 80 && frp < 100) {
+    // Only process HIGH confidence detections (≥85%) - no FRP fallback
+    if (confidence < 85) {
       return null; // Skip medium and low confidence detections
     }
 
-    // Determine severity based on confidence, brightness, and FRP
-    let severity: 'GREEN' | 'ORANGE' | 'RED' = 'RED'; // All remaining fires are high confidence
+    // Determine severity based on confidence level for high-confidence-only detections
+    let severity: 'GREEN' | 'ORANGE' | 'RED' = 'RED';
     
-    // High confidence (≥80%) or high FRP (≥100 MW) indicates major fire
-    if (confidence >= 80 || frp >= 100) {
+    // Ultra-high confidence (≥95%) with high FRP indicates critical fire
+    if (confidence >= 95 && frp >= 100) {
       severity = 'RED';
+    }
+    // High confidence (≥85%) indicates significant fire activity  
+    else if (confidence >= 85) {
+      severity = 'ORANGE';
     }
 
     // Create descriptive title for high confidence detections only
-    const title = `Active Fire Detection (High Confidence)`;
+    const confidenceLabel = confidence >= 95 ? 'Ultra-High' : 'High';
+    const title = `Active Fire Detection (${confidenceLabel} Confidence ${confidence}%)`;
 
     // Create description with fire characteristics (high confidence detections only)
     const description = [
       `Satellite: ${satellite} ${instrument}`,
-      `Confidence: ${confidence}% (High)`,
+      `Confidence: ${confidence}% (${confidenceLabel} Confidence)`,
       brightness > 0 ? `Brightness: ${brightness.toFixed(1)}K` : null,
       frp > 0 ? `Fire Radiative Power: ${frp.toFixed(1)} MW` : null,
-      `Detection: ${acq_date} ${acq_time} UTC`
+      `Detection: ${acq_date} ${acq_time} UTC`,
+      'High-confidence active fire detection only'
     ].filter(Boolean).join(' | ');
 
     // Determine country from coordinates (simplified approach)
