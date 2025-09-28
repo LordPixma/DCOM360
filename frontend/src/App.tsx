@@ -7,6 +7,7 @@ import { RealTimeAlerts } from '@/components/RealTimeAlerts'
 import { CycloneTracker } from '@/components/CycloneTracker'
 import { WildfireClusters } from '@/components/WildfireClusters'
 import { FeedHealthStatus } from '@/components/FeedHealthStatus'
+import CriticalEvents from '@/components/CriticalEvents'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Moon, Sun, Share2 } from 'lucide-react'
@@ -335,6 +336,7 @@ export default function App() {
               </Suspense>
             </div>
             <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
+              <CriticalEvents />
               <Filters />
               <RecentDisasters />
               <BreakingNews />
