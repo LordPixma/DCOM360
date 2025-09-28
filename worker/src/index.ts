@@ -83,6 +83,22 @@ function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: numb
   return res
 }
 
+// Safely parse a JSON string into an array
+function safeJsonArray(v: string): any[] | undefined {
+  try {
+    const parsed = JSON.parse(v)
+    return Array.isArray(parsed) ? parsed : undefined
+  } catch { return undefined }
+}
+
+// Compute simple trend classification based on growth rate
+function computeTrend(growth: number | null | undefined): 'rising' | 'falling' | 'stable' | undefined {
+  if (growth == null || isNaN(growth)) return undefined
+  if (growth > 0.15) return 'rising'
+  if (growth < -0.1) return 'falling'
+  return 'stable'
+}
+
 async function enrichEqItem(env: Env, url: string): Promise<{ felt?: number; local_time_line?: string; page_title?: string; location_line?: string; region?: string; country?: string; lat?: number; lon?: number } | null> {
   const key = `eq:detail:${url}`
   const cached = await cache.get(env, key)
@@ -200,7 +216,11 @@ export default {
           'disasters:summary',
           'disasters:current:all:all:all:50:0',
           'disasters:history:7',
-          'countries:list'
+          'countries:list',
+          // Newly added Phase 1 domain caches
+          'cyclones:latest',
+          'wildfire:clusters:50',
+          'feeds:health'
         ]
         await Promise.all(keys.map(k => cache.del(env, k)))
         return json({ success: true, data: { purged: keys.length } }, { headers: { ...cors } })
@@ -293,6 +313,69 @@ export default {
         await env.DB.prepare('DELETE FROM admin_users WHERE email = ?').bind(email).run()
         return json({ success: true, data: { email } }, { headers: { ...cors } })
       }
+      // Phase 1 demo seed endpoint: inserts representative cyclone and wildfire cluster rows
+      if (url.pathname === '/api/admin/seed/phase1' && request.method === 'POST') {
+        try {
+          const nowIso = new Date().toISOString()
+          // Sample cyclone advisories (two advisories for one named storm, one for another)
+          const cycloneInserts = [
+            env.DB.prepare(`INSERT OR IGNORE INTO cyclones (external_id, name, basin, category, latitude, longitude, max_wind_kt, min_pressure_mb, movement_dir, movement_speed_kt, advisory_time, forecast_json)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .bind('AL01-2025-20250928-1200', 'ALPHA', 'AL', 'Tropical Storm', 14.2, -45.1, 55, 1002, 'NW', 12, new Date(Date.now() - 2*60*60*1000).toISOString(), JSON.stringify([
+                { t: 12, lat: 15.0, lng: -46.0, wind_kt: 60 },
+                { t: 24, lat: 16.1, lng: -47.2, wind_kt: 65 },
+                { t: 36, lat: 17.4, lng: -48.9, wind_kt: 70 }
+              ])),
+            env.DB.prepare(`INSERT OR IGNORE INTO cyclones (external_id, name, basin, category, latitude, longitude, max_wind_kt, min_pressure_mb, movement_dir, movement_speed_kt, advisory_time, forecast_json)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .bind('AL01-2025-20250928-1800', 'ALPHA', 'AL', 'Tropical Storm', 14.6, -45.6, 60, 998, 'NW', 13, new Date(Date.now() - 1*60*60*1000).toISOString(), JSON.stringify([
+                { t: 12, lat: 15.4, lng: -46.5, wind_kt: 65 },
+                { t: 24, lat: 16.6, lng: -47.8, wind_kt: 70 },
+                { t: 36, lat: 17.9, lng: -49.5, wind_kt: 75 }
+              ])),
+            env.DB.prepare(`INSERT OR IGNORE INTO cyclones (external_id, name, basin, category, latitude, longitude, max_wind_kt, min_pressure_mb, movement_dir, movement_speed_kt, advisory_time, forecast_json)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .bind('EP02-2025-20250928-1800', 'BRAVO', 'EP', 'Depression', 10.5, -110.2, 30, 1008, 'WNW', 8, new Date(Date.now() - 90*60*1000).toISOString(), JSON.stringify([
+                { t: 12, lat: 10.8, lng: -111.0, wind_kt: 30 },
+                { t: 24, lat: 11.2, lng: -111.9, wind_kt: 35 },
+                { t: 36, lat: 11.7, lng: -112.8, wind_kt: 35 }
+              ]))
+          ]
+          // Sample wildfire cluster
+          const wildfireInserts = [
+            env.DB.prepare(`INSERT OR IGNORE INTO wildfire_clusters (cluster_key, centroid_lat, centroid_lng, detections_6h, detections_24h, growth_rate, area_estimate_km2, intensity_score, first_detected, last_detected)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+              .bind('demo-1', 38.45, -122.75, 12, 48, 0.25, 32.5, 77.3, new Date(Date.now() - 5*60*60*1000).toISOString(), new Date(Date.now() - 15*60*1000).toISOString())
+          ]
+          // Execute batched inserts
+          await env.DB.batch([...cycloneInserts, ...wildfireInserts])
+          // Count how many rows exist for seeded identifiers
+          const cycloneCountRow = await env.DB.prepare("SELECT COUNT(*) as c FROM cyclones WHERE name IN ('ALPHA','BRAVO')").first<{ c: number }>()
+          const wildfireCountRow = await env.DB.prepare("SELECT COUNT(*) as c FROM wildfire_clusters WHERE cluster_key = 'demo-1'").first<{ c: number }>()
+          // Touch feed health rows
+          const feeds = ['cyclones','nasa_firms']
+          for (const f of feeds) {
+            await env.DB.prepare("INSERT INTO feed_health (feed_name, last_success, status, notes) VALUES (?, ?, 'OK', 'Seeded') ON CONFLICT(feed_name) DO UPDATE SET last_success=excluded.last_success, status='OK', notes='Seeded', updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')")
+              .bind(f, nowIso).run()
+          }
+          // Purge related caches
+          await Promise.all([
+            cache.del(env, 'cyclones:latest'),
+            cache.del(env, 'wildfire:clusters:50'),
+            cache.del(env, 'feeds:health')
+          ])
+          return json({ success: true, data: {
+            inserted: {
+              cyclones_total_named: cycloneCountRow?.c ?? 0,
+              wildfire_demo_clusters: wildfireCountRow?.c ?? 0
+            },
+            message: 'Phase 1 demo seed applied',
+            refreshed_feeds: feeds
+          } }, { headers: { ...cors } })
+        } catch (e: any) {
+          return json({ success: false, data: null, error: { code: 'seed_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+        }
+      }
       // Unknown admin route
       return json({ success: false, data: null, error: { code: 'not_found', message: 'Unknown admin route' } }, { status: 404, headers: { ...cors } })
     }
@@ -315,6 +398,105 @@ export default {
       // Return empty news since external RSS feeds have been removed
       const body: APIResponse<any[]> = { success: true, data: [] }
       return json(body, { headers: { ...cors, 'cache-control': 'public, max-age=300' } })
+    }
+    // --- New Phase 1 Endpoints ---
+    // Cyclones (latest advisory per storm name)
+    if (url.pathname === '/api/cyclones' && request.method === 'GET') {
+      try {
+        const cacheKey = 'cyclones:latest'
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+        const rows = await env.DB.prepare(`
+          WITH latest AS (
+            SELECT *, ROW_NUMBER() OVER(PARTITION BY name ORDER BY advisory_time DESC) as rn
+            FROM cyclones
+          )
+          SELECT id, external_id, name, basin, category, latitude, longitude, max_wind_kt, min_pressure_mb,
+                 movement_dir, movement_speed_kt, advisory_time, forecast_json
+          FROM latest WHERE rn=1 ORDER BY advisory_time DESC LIMIT 50`).all<any>()
+        const data = (rows.results || []).map(r => ({
+          id: String(r.id),
+            name: r.name,
+            basin: r.basin || undefined,
+            category: r.category || undefined,
+            position: (r.latitude != null && r.longitude != null) ? { lat: r.latitude, lng: r.longitude } : undefined,
+            max_wind_kt: r.max_wind_kt || undefined,
+            min_pressure_mb: r.min_pressure_mb || undefined,
+            movement: (r.movement_dir || r.movement_speed_kt) ? { direction: r.movement_dir || undefined, speed_kt: r.movement_speed_kt || undefined } : undefined,
+            advisory_time: r.advisory_time,
+            forecast: r.forecast_json ? safeJsonArray(r.forecast_json) : undefined
+        }))
+        const body: APIResponse<any[]> = { success: true, data }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, cacheKey, jsonStr, 300)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=300' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'cyclone_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+    // Wildfire Clusters (recent by last_detected)
+    if (url.pathname === '/api/wildfire/clusters' && request.method === 'GET') {
+      try {
+        const limit = Math.min(Number(url.searchParams.get('limit') || 50), 200)
+        const cacheKey = `wildfire:clusters:${limit}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+        const rows = await env.DB.prepare(`SELECT id, cluster_key, centroid_lat, centroid_lng, detections_6h, detections_24h,
+            growth_rate, area_estimate_km2, intensity_score, first_detected, last_detected, updated_at
+          FROM wildfire_clusters ORDER BY last_detected DESC NULLS LAST, intensity_score DESC LIMIT ?`).bind(limit).all<any>()
+        const data = (rows.results || []).map(r => ({
+          id: String(r.id),
+          cluster_key: r.cluster_key,
+          centroid: { lat: r.centroid_lat, lng: r.centroid_lng },
+          detections_6h: r.detections_6h,
+          detections_24h: r.detections_24h,
+          growth_rate: r.growth_rate || undefined,
+          area_estimate_km2: r.area_estimate_km2 || undefined,
+          intensity_score: r.intensity_score || undefined,
+          first_detected: r.first_detected || undefined,
+          last_detected: r.last_detected || undefined,
+          trend: computeTrend(r.growth_rate)
+        }))
+        const body: APIResponse<any[]> = { success: true, data }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, cacheKey, jsonStr, 120)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=120' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'wildfire_cluster_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+    // Feed health status
+    if (url.pathname === '/api/system/feeds' && request.method === 'GET') {
+      try {
+        const cacheKey = 'feeds:health'
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+        const rows = await env.DB.prepare(`SELECT feed_name, last_success, last_error, error_count, avg_latency_ms, consecutive_failures, status, notes, updated_at FROM feed_health ORDER BY feed_name`).all<any>()
+        const now = Date.now()
+        const data = (rows.results || []).map(r => ({
+          feed: r.feed_name,
+          status: (r.status || 'OK') as any,
+          last_success: r.last_success || undefined,
+          last_error: r.last_error || undefined,
+          error_count: r.error_count || 0,
+          avg_latency_ms: r.avg_latency_ms || undefined,
+          consecutive_failures: r.consecutive_failures || 0,
+          notes: r.notes || undefined,
+          freshness_seconds: r.last_success ? Math.round((now - Date.parse(r.last_success)) / 1000) : undefined
+        }))
+        const body: APIResponse<any[]> = { success: true, data }
+        const jsonStr = JSON.stringify(body)
+        await cache.put(env, cacheKey, jsonStr, 60)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=60' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'feed_health_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
     }
     // Enriched Earthquake Report for a given disaster id
     if (url.pathname.startsWith('/api/disasters/') && url.pathname.endsWith('/eq-report') && request.method === 'GET') {

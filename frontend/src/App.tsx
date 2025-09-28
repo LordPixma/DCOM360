@@ -4,6 +4,9 @@ import { RecentDisasters } from '@/components/RecentDisasters'
 import { BreakingNews } from '@/components/BreakingNews'
 import { Filters } from '@/components/Filters'
 import { RealTimeAlerts } from '@/components/RealTimeAlerts'
+import { CycloneTracker } from '@/components/CycloneTracker'
+import { WildfireClusters } from '@/components/WildfireClusters'
+import { FeedHealthStatus } from '@/components/FeedHealthStatus'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Moon, Sun, Share2 } from 'lucide-react'
@@ -335,6 +338,9 @@ export default function App() {
               <Filters />
               <RecentDisasters />
               <BreakingNews />
+              <CycloneTracker />
+              <WildfireClusters limit={15} />
+              <FeedHealthStatus />
             </div>
           </div>
         </section>

@@ -10,17 +10,23 @@ import {
   Title
 } from 'chart.js'
 import { useSummary } from '@/hooks/useSummary'
+import { useCyclones } from '@/hooks/useCyclones'
+import { useWildfireClusters } from '@/hooks/useWildfireClusters'
 import { BarChart3, PieChart, TrendingUp } from 'lucide-react'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend, Title)
 
 export function Statistics() {
   const { data, isLoading } = useSummary()
+  const { data: cyclones } = useCyclones()
+  const { data: wildfire } = useWildfireClusters({ limit: 50 })
   const labels = data?.totals.map(t => t.type) ?? []
   const counts = data?.totals.map(t => t.count) ?? []
   const affected = data?.total_affected_population ?? 0
   const recent24 = data?.recent_24h ?? 0
   const econ = data?.economic_impact_estimate_usd ?? 0
+  const cycloneCount = cyclones?.length ?? 0
+  const wildfireCount = wildfire?.length ?? 0
 
   const barData = {
     labels,
@@ -121,7 +127,7 @@ export function Statistics() {
       
       <div className="p-6">
         {!isLoading && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
               <div className="text-xs text-slate-500 dark:text-slate-400">People Affected</div>
               <div className="text-xl font-semibold text-slate-900 dark:text-white">{affected.toLocaleString()}</div>
@@ -133,6 +139,14 @@ export function Statistics() {
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
               <div className="text-xs text-slate-500 dark:text-slate-400">Economic Impact</div>
               <div className="text-xl font-semibold text-slate-900 dark:text-white">${econ.toLocaleString()}</div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+              <div className="text-xs text-slate-500 dark:text-slate-400">Active Cyclones</div>
+              <div className="text-xl font-semibold text-slate-900 dark:text-white">{cycloneCount}</div>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+              <div className="text-xs text-slate-500 dark:text-slate-400">Wildfire Clusters</div>
+              <div className="text-xl font-semibold text-slate-900 dark:text-white">{wildfireCount}</div>
             </div>
           </div>
         )}

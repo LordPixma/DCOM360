@@ -4,6 +4,10 @@ import { parseReliefwebFeed } from './reliefweb'
 import { parseUSGSFeed } from './usgs'
 import { parseNOAACAPFeed } from './noaa-cap'
 import { fetchFIRMSGlobalData, type ParsedFIRMSItem } from './nasa-firms'
+// Phase 1 extended ingestion modules
+import { ingestCyclones } from './cyclones'
+import { computeWildfireClusters } from './wildfire-clusters'
+import { updateFeedHealth } from './feed-health'
 import PostalMime from 'postal-mime'
 
 type Env = {
@@ -478,6 +482,44 @@ export default {
       }
     }
 
+    // Manual trigger: cyclone ingestion stub (Phase 1)
+    if (req.method === 'POST' && pathname === '/ingest/cyclones') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        const t0 = Date.now()
+        const result = await ingestCyclones(env as any, {})
+        await updateFeedHealth(env as any, { feed_name: 'cyclones', ok: true, latency_ms: Date.now() - t0 })
+        return json({ success: true, data: result })
+      } catch (err: any) {
+        await updateFeedHealth(env as any, { feed_name: 'cyclones', ok: false, error_message: err?.message })
+        return json({ success: false, error: { code: 'INGEST_ERROR', message: err?.message || String(err) } }, { status: 500 })
+      }
+    }
+
+    // Manual trigger: wildfire clusters recompute (Phase 1 stub)
+    if (req.method === 'POST' && pathname === '/ingest/wildfire-clusters') {
+      try {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.replace(/^Bearer\s+/i, '')
+        const expected = env.INGEST_SECRET ?? env.INGEST_TOKEN
+        if (!expected || token !== expected) {
+          return json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } }, { status: 401 })
+        }
+        const t0 = Date.now()
+        const result = await computeWildfireClusters(env as any, {})
+        await updateFeedHealth(env as any, { feed_name: 'wildfire_clusters', ok: true, latency_ms: Date.now() - t0 })
+        return json({ success: true, data: result })
+      } catch (err: any) {
+        await updateFeedHealth(env as any, { feed_name: 'wildfire_clusters', ok: false, error_message: err?.message })
+        return json({ success: false, error: { code: 'CLUSTER_ERROR', message: err?.message || String(err) } }, { status: 500 })
+      }
+    }
+
   if (req.method === 'POST' && pathname === '/ingest/email') {
       const auth = req.headers.get('authorization') || ''
       const token = auth.replace(/^Bearer\s+/i, '')
@@ -575,6 +617,7 @@ export default {
   // Scheduled cron to pull GDACS, ReliefWeb, USGS, NOAA CAP, and NASA FIRMS feeds periodically
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     try {
+      const schedStart = Date.now()
       // Pull GDACS, ReliefWeb, USGS, and NOAA CAP feeds in parallel
       const gdacsUrl = env.GDACS_RSS_URL || 'https://www.gdacs.org/xml/rss.xml'
       const reliefUrl = env.RELIEFWEB_RSS_URL || 'https://reliefweb.int/disasters/rss.xml'  
@@ -598,21 +641,33 @@ export default {
         const xml = await gdacsRes.text()
         const items = parseGdacsFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+        await updateFeedHealth(env as any, { feed_name: 'gdacs', ok: true })
+      } else {
+        await updateFeedHealth(env as any, { feed_name: 'gdacs', ok: false, error_message: `HTTP ${gdacsRes.status}` })
       }
       if (reliefRes.ok) {
         const xml = await reliefRes.text()
         const items = parseReliefwebFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+        await updateFeedHealth(env as any, { feed_name: 'reliefweb', ok: true })
+      } else {
+        await updateFeedHealth(env as any, { feed_name: 'reliefweb', ok: false, error_message: `HTTP ${reliefRes.status}` })
       }
       if (usgsRes.ok) {
         const xml = await usgsRes.text()
         const items = parseUSGSFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+        await updateFeedHealth(env as any, { feed_name: 'usgs', ok: true })
+      } else {
+        await updateFeedHealth(env as any, { feed_name: 'usgs', ok: false, error_message: `HTTP ${usgsRes.status}` })
       }
       if (noaaCapRes.ok) {
         const xml = await noaaCapRes.text()
         const items = parseNOAACAPFeed(xml)
         await Promise.all(items.map((p) => processParsedEmail(p as any, env)))
+        await updateFeedHealth(env as any, { feed_name: 'noaa_cap', ok: true })
+      } else {
+        await updateFeedHealth(env as any, { feed_name: 'noaa_cap', ok: false, error_message: `HTTP ${noaaCapRes.status}` })
       }
       
       // Fetch NASA FIRMS fire data if MAP_KEY is configured
@@ -628,9 +683,29 @@ export default {
               await new Promise(resolve => setTimeout(resolve, 200))
             }
           }
+          await updateFeedHealth(env as any, { feed_name: 'nasa_firms', ok: true })
         } catch (error) {
           console.error('Error processing NASA FIRMS data in scheduled job:', error)
+          await updateFeedHealth(env as any, { feed_name: 'nasa_firms', ok: false, error_message: error?.message })
         }
+      }
+
+      // Invoke cyclone advisory ingestion stub (no-op currently)
+      try {
+        const t0 = Date.now()
+        await ingestCyclones(env as any, {})
+        await updateFeedHealth(env as any, { feed_name: 'cyclones', ok: true, latency_ms: Date.now() - t0 })
+      } catch (err: any) {
+        await updateFeedHealth(env as any, { feed_name: 'cyclones', ok: false, error_message: err?.message })
+      }
+
+      // Compute wildfire clusters stub
+      try {
+        const t0 = Date.now()
+        await computeWildfireClusters(env as any, {})
+        await updateFeedHealth(env as any, { feed_name: 'wildfire_clusters', ok: true, latency_ms: Date.now() - t0 })
+      } catch (err: any) {
+        await updateFeedHealth(env as any, { feed_name: 'wildfire_clusters', ok: false, error_message: err?.message })
       }
       
       // Purge old records (older than 24 hours) to prevent database growth
