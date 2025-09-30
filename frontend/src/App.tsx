@@ -8,6 +8,7 @@ import { CycloneTracker } from '@/components/CycloneTracker'
 import { WildfireClusters } from '@/components/WildfireClusters'
 import { FeedHealthStatus } from '@/components/FeedHealthStatus'
 import CriticalEvents from '@/components/CriticalEvents'
+import { PredictionsDashboard } from '@/components/PredictionsDashboard'
 import { useAppStore } from '@/store/appStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { Search, Bell, Moon, Sun, Share2 } from 'lucide-react'
@@ -334,6 +335,7 @@ export default function App() {
               <Suspense fallback={<div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-sm text-slate-500 dark:text-slate-400">Loading charts…</div>}>
                 <Statistics />
               </Suspense>
+              <PredictionsDashboard className="xl:col-span-8" />
             </div>
             <div className="xl:col-span-4 space-y-6 sm:space-y-8 order-1 xl:order-2">
               <CriticalEvents />

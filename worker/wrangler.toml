@@ -19,6 +19,9 @@ migrations_dir = "migrations"
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
 
+[ai]
+binding = "AI"
+
 [env.staging]
 [env.staging.vars]
 ENV = "staging"
@@ -34,6 +37,9 @@ migrations_dir = "migrations"
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
 
+[env.staging.ai]
+binding = "AI"
+
 [env.production]
 [env.production.vars]
 ENV = "prod"
@@ -48,3 +54,6 @@ migrations_dir = "migrations"
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
+
+[env.production.ai]
+binding = "AI"

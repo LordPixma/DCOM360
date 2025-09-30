@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database
   CACHE?: KVNamespace
+  AI?: Ai
   ENV_ORIGIN?: string
   ADMIN_TOKEN?: string
   JWT_SECRET?: string
@@ -118,5 +119,64 @@ export interface FeedHealth {
   consecutive_failures: number
   notes?: string
   freshness_seconds?: number // computed at read time
+}
+
+// --- AI Predictive Analytics Types ---
+
+export interface RiskAssessment {
+  country: string
+  disaster_type: string
+  risk_score: number // 0-100
+  confidence: number // 0-1
+  factors: string[]
+  time_horizon_days: number
+  last_updated: string
+}
+
+export interface SeasonalForecast {
+  season: string
+  disaster_type: string
+  regions: string[]
+  likelihood: 'low' | 'medium' | 'high' | 'extreme'
+  peak_period: string
+  confidence: number
+  historical_patterns: string[]
+}
+
+export interface EarlyWarning {
+  id: string
+  disaster_type: string
+  regions: string[]
+  severity_prediction: 'green' | 'yellow' | 'red'
+  confidence: number
+  warning_issued: string
+  estimated_timeline: string
+  key_indicators: string[]
+  recommended_actions: string[]
+}
+
+export interface TrendAnalysis {
+  disaster_type: string
+  trend_direction: 'increasing' | 'decreasing' | 'stable'
+  change_rate: number
+  time_period: string
+  significance: number
+  contributing_factors: string[]
+}
+
+export interface PredictionRequest {
+  type: 'risk_assessment' | 'seasonal_forecast' | 'early_warning' | 'trend_analysis'
+  parameters: Record<string, any>
+}
+
+export interface AIInsight {
+  id: string
+  type: 'pattern' | 'anomaly' | 'trend' | 'correlation'
+  title: string
+  description: string
+  confidence: number
+  impact_level: 'low' | 'medium' | 'high'
+  created_at: string
+  data_points: Record<string, any>
 }
 

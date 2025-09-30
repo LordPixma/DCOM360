@@ -2,6 +2,13 @@ import { Env, Disaster, DisasterRow } from './types'
 import { json, mapSeverityToClient, buildCorsHeaders, sanitizeText } from './utils'
 import { cache } from './cache'
 import { XMLParser } from 'fast-xml-parser'
+import { 
+  generateRiskAssessment, 
+  generateSeasonalForecast, 
+  generateEarlyWarnings, 
+  generateTrendAnalysis,
+  generateAIInsights 
+} from './aiAnalysis'
 // Helper: parse World Earthquake Report HTML for totals and top items
 function parseEqReportHtml(html: string): { totals?: { total?: number; m5?: number; m4?: number; m3?: number; m2?: number }, top?: Array<{ rank: number; mag: number; title: string; url?: string; datetime?: string; location?: string; felt?: number }> } {
   const res: any = {}
@@ -498,6 +505,165 @@ export default {
         return json({ success: false, data: null, error: { code: 'feed_health_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
       }
     }
+
+    // --- AI Predictive Analytics Endpoints ---
+    
+    // Risk Assessment API
+    if (url.pathname === '/api/predictions/risk-assessment' && request.method === 'GET') {
+      try {
+        if (!env.AI) {
+          return json({ success: false, data: null, error: { code: 'ai_not_available', message: 'AI functionality is not available' } }, { status: 503, headers: { ...cors } })
+        }
+
+        const country = url.searchParams.get('country')
+        const disasterType = url.searchParams.get('type') || undefined
+
+        if (!country) {
+          return json({ success: false, data: null, error: { code: 'missing_param', message: 'Country parameter is required' } }, { status: 400, headers: { ...cors } })
+        }
+
+        const cacheKey = `ai:risk:${country}:${disasterType || 'all'}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+
+        const riskAssessments = await generateRiskAssessment(env, country, disasterType)
+        const body: APIResponse<typeof riskAssessments> = { success: true, data: riskAssessments }
+        const jsonStr = JSON.stringify(body)
+        
+        // Cache for 1 hour
+        await cache.put(env, cacheKey, jsonStr, 3600)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=3600' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'ai_risk_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    // Seasonal Forecast API
+    if (url.pathname === '/api/predictions/seasonal-forecast' && request.method === 'GET') {
+      try {
+        if (!env.AI) {
+          return json({ success: false, data: null, error: { code: 'ai_not_available', message: 'AI functionality is not available' } }, { status: 503, headers: { ...cors } })
+        }
+
+        const disasterType = url.searchParams.get('type')
+        const region = url.searchParams.get('region') || undefined
+
+        if (!disasterType) {
+          return json({ success: false, data: null, error: { code: 'missing_param', message: 'Disaster type parameter is required' } }, { status: 400, headers: { ...cors } })
+        }
+
+        const cacheKey = `ai:seasonal:${disasterType}:${region || 'global'}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+
+        const forecasts = await generateSeasonalForecast(env, disasterType, region)
+        const body: APIResponse<typeof forecasts> = { success: true, data: forecasts }
+        const jsonStr = JSON.stringify(body)
+        
+        // Cache for 4 hours
+        await cache.put(env, cacheKey, jsonStr, 14400)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=14400' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'ai_seasonal_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    // Early Warning API
+    if (url.pathname === '/api/predictions/early-warnings' && request.method === 'GET') {
+      try {
+        if (!env.AI) {
+          return json({ success: false, data: null, error: { code: 'ai_not_available', message: 'AI functionality is not available' } }, { status: 503, headers: { ...cors } })
+        }
+
+        const lookbackDays = Math.min(parseInt(url.searchParams.get('lookback') || '30'), 90)
+        
+        const cacheKey = `ai:warnings:${lookbackDays}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+
+        const warnings = await generateEarlyWarnings(env, lookbackDays)
+        const body: APIResponse<typeof warnings> = { success: true, data: warnings }
+        const jsonStr = JSON.stringify(body)
+        
+        // Cache for 30 minutes
+        await cache.put(env, cacheKey, jsonStr, 1800)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=1800' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'ai_warning_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    // Trend Analysis API
+    if (url.pathname === '/api/predictions/trends' && request.method === 'GET') {
+      try {
+        if (!env.AI) {
+          return json({ success: false, data: null, error: { code: 'ai_not_available', message: 'AI functionality is not available' } }, { status: 503, headers: { ...cors } })
+        }
+
+        const disasterType = url.searchParams.get('type') || undefined
+        const timeframe = url.searchParams.get('timeframe') || '1 year'
+        
+        const cacheKey = `ai:trends:${disasterType || 'all'}:${timeframe}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+
+        const trends = await generateTrendAnalysis(env, disasterType, timeframe)
+        const body: APIResponse<typeof trends> = { success: true, data: trends }
+        const jsonStr = JSON.stringify(body)
+        
+        // Cache for 2 hours
+        await cache.put(env, cacheKey, jsonStr, 7200)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=7200' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'ai_trend_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
+    // AI Insights API (for recent disasters)
+    if (url.pathname === '/api/predictions/insights' && request.method === 'GET') {
+      try {
+        if (!env.AI) {
+          return json({ success: false, data: null, error: { code: 'ai_not_available', message: 'AI functionality is not available' } }, { status: 503, headers: { ...cors } })
+        }
+
+        const days = Math.min(parseInt(url.searchParams.get('days') || '7'), 30)
+        
+        const cacheKey = `ai:insights:${days}`
+        const cached = await cache.get(env, cacheKey)
+        if (cached) {
+          return new Response(cached, { headers: { 'content-type': 'application/json', ...cors } })
+        }
+
+        // Get recent disasters for analysis
+        const recentDisasters = await env.DB.prepare(`
+          SELECT id, external_id, disaster_type, severity, title, country, 
+                 coordinates_lat, coordinates_lng, event_timestamp, affected_population
+          FROM disasters 
+          WHERE event_timestamp > datetime('now', '-${days} days')
+          ORDER BY event_timestamp DESC
+          LIMIT 50
+        `).all<DisasterRow>()
+
+        const insights = await generateAIInsights(env, recentDisasters.results || [])
+        const body: APIResponse<typeof insights> = { success: true, data: insights }
+        const jsonStr = JSON.stringify(body)
+        
+        // Cache for 1 hour
+        await cache.put(env, cacheKey, jsonStr, 3600)
+        return new Response(jsonStr, { headers: { 'content-type': 'application/json', ...cors, 'cache-control': 'public, max-age=3600' } })
+      } catch (e: any) {
+        return json({ success: false, data: null, error: { code: 'ai_insights_error', message: e?.message || String(e) } }, { status: 500, headers: { ...cors } })
+      }
+    }
+
     // Enriched Earthquake Report for a given disaster id
     if (url.pathname.startsWith('/api/disasters/') && url.pathname.endsWith('/eq-report') && request.method === 'GET') {
       const id = url.pathname.split('/').slice(-2, -1)[0]

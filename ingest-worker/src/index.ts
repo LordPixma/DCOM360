@@ -8,11 +8,13 @@ import { fetchFIRMSGlobalData, type ParsedFIRMSItem } from './nasa-firms'
 import { ingestCyclones } from './cyclones'
 import { computeWildfireClusters } from './wildfire-clusters'
 import { updateFeedHealth } from './feed-health'
+import { analyzeNewDisaster, analyzeBatchDisasters } from './ai-analysis'
 import PostalMime from 'postal-mime'
 
 type Env = {
   DB: D1Database
   CACHE: KVNamespace
+  AI?: Ai
   INGEST_SECRET?: string
   INGEST_TOKEN?: string
   GDACS_RSS_URL?: string
@@ -193,6 +195,25 @@ async function processParsedEmail(parsed: ParsedEmail, env: Env): Promise<{ newD
       await Promise.all(criticalKeys.map((k) => env.CACHE!.delete(k).catch(() => {})))
     }
 
+    // Run AI analysis for new disasters (non-blocking)
+    if (newDisasters > 0) {
+      // Run AI analysis asynchronously - don't wait for it to complete
+      analyzeNewDisaster(env, {
+        external_id: parsed.external_id,
+        disaster_type: normType,
+        severity: parsed.severity,
+        title: parsed.title,
+        country: parsed.country || null,
+        coordinates_lat: parsed.coordinates_lat ?? null,
+        coordinates_lng: parsed.coordinates_lng ?? null,
+        event_timestamp: parsed.event_timestamp,
+        description: parsed.description || null,
+        affected_population: parsed.affected_population ?? null
+      }).catch(error => {
+        console.error('AI analysis failed (non-blocking):', error)
+      })
+    }
+
     return { newDisasters, updatedDisasters }
   } catch (e: any) {
     return { newDisasters: 0, updatedDisasters: 0, error: e?.message || String(e) }
@@ -251,6 +272,28 @@ export default {
           const keys = ['disasters:summary','disasters:current:all:all:all:50:0','disasters:history:7','countries:list']
           await Promise.all(keys.map((k) => env.CACHE!.delete(k).catch(() => {})))
         }
+
+        // Run batch AI analysis for new disasters (if any were processed)
+        if (newDisasters > 0) {
+          const disastersForAI = items.map(item => ({
+            external_id: item.external_id,
+            disaster_type: normalizeDisasterType(item.disaster_type, item.title, item.description),
+            severity: item.severity,
+            title: item.title,
+            country: item.country || null,
+            coordinates_lat: item.coordinates_lat ?? null,
+            coordinates_lng: item.coordinates_lng ?? null,
+            event_timestamp: item.event_timestamp,
+            description: item.description || null,
+            affected_population: item.affected_population ?? null
+          }))
+          
+          // Run AI batch analysis asynchronously (non-blocking)
+          analyzeBatchDisasters(env, disastersForAI).catch(error => {
+            console.error('GDACS batch AI analysis failed (non-blocking):', error)
+          })
+        }
+
         if (errors.length) {
           return json({ success: false, error: { code: 'PARTIAL_FAIL', message: 'Some items failed', details: errors }, data: { processed: items.length, newDisasters, updatedDisasters } }, { status: 207 })
         }
@@ -696,7 +739,7 @@ export default {
           await updateFeedHealth(env as any, { feed_name: 'nasa_firms', ok: true })
         } catch (error) {
           console.error('Error processing NASA FIRMS data in scheduled job:', error)
-          await updateFeedHealth(env as any, { feed_name: 'nasa_firms', ok: false, error_message: error?.message })
+          await updateFeedHealth(env as any, { feed_name: 'nasa_firms', ok: false, error_message: (error as any)?.message || String(error) })
         }
       }
 

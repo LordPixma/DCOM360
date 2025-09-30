@@ -14,6 +14,9 @@ migrations_dir = "../worker/migrations"
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
 
+[ai]
+binding = "AI"
+
 [vars]
 INGEST_TOKEN = "dev-token-123" # set via `wrangler secret put INGEST_TOKEN` in production
 GDACS_RSS_URL = "https://www.gdacs.org/XML/RSS.xml"
@@ -37,6 +40,8 @@ database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
 [[env.staging.kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
+[env.staging.ai]
+binding = "AI"
 
 [env.production]
 # Use Cloudflare Secret for INGEST_SECRET in production (do not set as plain var)
@@ -54,6 +59,8 @@ database_id = "aae8e15b-bb6a-4f16-9e2d-e63ec2ae9c20"
 [[env.production.kv_namespaces]]
 binding = "CACHE"
 id = "46818e79770044efa2e863ca0b0f465a"
+[env.production.ai]
+binding = "AI"
 
 [triggers]
 crons = ["*/3 * * * *"]
